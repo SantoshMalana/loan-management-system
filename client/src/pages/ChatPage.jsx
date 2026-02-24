@@ -16,6 +16,8 @@ const ChatPage = () => {
     const [sending, setSending] = useState(false);
 
     const messagesEndRef = useRef(null);
+    // Stable ref so the userId-only useEffect can read latest isOfficer without being in deps
+    const isOfficerRef = useRef(['admin', 'loan_officer', 'branch_manager', 'general_manager'].includes(user?.role));
 
     const scrollToBottom = () => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -91,9 +93,9 @@ const ChatPage = () => {
             const existing = conversations.find(c => c.user._id === userId);
             if (existing) {
                 setSelectedUser(existing.user);
-            } else {
-                // fallback to fetch minimal info if they started a chat from outside
-                api.get(`/auth/users`).then(res => { // not ideal but works
+            } else if (isOfficerRef.current) {
+                // Only officers have access to /auth/users — safe to call
+                api.get(`/auth/users`).then(res => {
                     const found = res.data.find(u => u._id === userId);
                     if (found) setSelectedUser(found);
                 }).catch(e => console.log(e));
@@ -102,7 +104,8 @@ const ChatPage = () => {
             setMessages([]);
             setSelectedUser(null);
         }
-    }, [userId, conversations]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [userId]);
 
     const handleSend = async (e) => {
         e.preventDefault();
@@ -127,6 +130,8 @@ const ChatPage = () => {
     };
 
     const isOfficer = ['admin', 'loan_officer', 'branch_manager', 'general_manager'].includes(user?.role);
+    // Keep ref in sync whenever role changes
+    isOfficerRef.current = isOfficer;
 
     const typeLabels = {
         general: { icon: '💬', label: 'General', color: 'var(--text)' },
@@ -188,7 +193,7 @@ const ChatPage = () => {
                                 </div>
                                 {conv.lastMessage && (
                                     <div style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', marginTop: '0.4rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                        {conv.lastMessage.sender === user?.id ? 'You: ' : ''}
+                                        {conv.lastMessage.sender?._id === user?.id || conv.lastMessage.sender === user?.id ? 'You: ' : ''}
                                         {conv.lastMessage.type !== 'general' && `${typeLabels[conv.lastMessage.type]?.icon} `}
                                         {conv.lastMessage.message}
                                     </div>

@@ -45,27 +45,17 @@ async function runTests() {
         const loanId = (await res.json())._id;
         console.log('✅ Loan submitted, ID:', loanId);
 
-        console.log('\n--- 3. Admin (Officer) Registration & Login ---');
-        const adminData = {
-            username: `admin_${Date.now()}`,
-            password: 'password123',
-            email: `admin_${Date.now()}@test.com`,
-            fullName: 'E2E Admin',
-            role: 'admin',
-            adminSecret: ADMIN_SECRET,
-            officerBank: 'SBI'
-        };
-        res = await fetch(`${API_URL}/auth/register`, {
-            method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(adminData)
-        });
-        if (!res.ok) throw new Error(await res.text());
-        console.log('✅ Admin registered');
+        console.log('\n--- 3. Admin Login (uses pre-seeded admin account) ---');
+        // Admin accounts CANNOT be self-registered. They must be created via `node server/seed.js`.
+        // Run: node server/seed.js  — before running this test.
+        const ADMIN_USERNAME = process.env.SEED_ADMIN_USERNAME || 'admin';
+        const ADMIN_PASSWORD = process.env.SEED_ADMIN_PASSWORD || 'Admin@2026';
 
         res = await fetch(`${API_URL}/auth/login`, {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ username: adminData.username, password: 'password123' })
+            body: JSON.stringify({ username: ADMIN_USERNAME, password: ADMIN_PASSWORD, staffOnly: true })
         });
-        if (!res.ok) throw new Error(await res.text());
+        if (!res.ok) throw new Error(`Admin login failed: ${await res.text()}. Did you run: node server/seed.js ?`);
         const adminToken = (await res.json()).token;
         console.log('✅ Admin logged in');
 

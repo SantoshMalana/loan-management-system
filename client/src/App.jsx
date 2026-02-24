@@ -3,6 +3,7 @@ import Navbar from './components/Navbar';
 import Sidebar from './components/Sidebar';
 import Login from './pages/Login';
 import AdminLogin from './pages/AdminLogin';
+import BankManagerLogin from './pages/BankManagerLogin';
 import Register from './pages/Register';
 import Home from './pages/Home';
 import Dashboard from './pages/Dashboard';
@@ -11,12 +12,12 @@ import LoanDetail from './pages/LoanDetail';
 import EMICalculator from './pages/EMICalculator';
 import OfficerPanel from './pages/OfficerPanel';
 import AdminDashboard from './pages/AdminDashboard';
+import CreateOfficer from './pages/CreateOfficer';
 import ChatPage from './pages/ChatPage';
 import { useContext } from 'react';
 import { AuthContext } from './context/AuthContext';
 
-const APPLICANT_ROLES = ['user', 'applicant'];
-const OFFICER_ROLES = ['loan_officer', 'branch_manager', 'general_manager', 'admin'];
+const STAFF_ROLES = ['branch_manager', 'admin'];
 
 const PrivateRoute = ({ children }) => {
   const { user, loading } = useContext(AuthContext);
@@ -24,16 +25,26 @@ const PrivateRoute = ({ children }) => {
   return user ? children : <Navigate to="/login" replace />;
 };
 
-const OfficerRoute = ({ children }) => {
-  const { user, loading } = useContext(AuthContext);
-  if (loading) return <div className="spinner" />;
-  return user && OFFICER_ROLES.includes(user.role) ? children : <Navigate to="/dashboard" replace />;
-};
-
+// Officers trying to reach applicant-only routes → redirect to officer panel
 const ApplicantRoute = ({ children }) => {
   const { user, loading } = useContext(AuthContext);
   if (loading) return <div className="spinner" />;
-  return user && APPLICANT_ROLES.includes(user.role) ? children : <Navigate to="/officer" replace />;
+  if (!user) return <Navigate to="/login" replace />;
+  return !STAFF_ROLES.includes(user.role) ? children : <Navigate to="/officer" replace />;
+};
+
+// Non-staff trying to reach officer routes → redirect to dashboard
+const StaffRoute = ({ children }) => {
+  const { user, loading } = useContext(AuthContext);
+  if (loading) return <div className="spinner" />;
+  return user && STAFF_ROLES.includes(user.role) ? children : <Navigate to="/dashboard" replace />;
+};
+
+// Admin-only routes
+const AdminRoute = ({ children }) => {
+  const { user, loading } = useContext(AuthContext);
+  if (loading) return <div className="spinner" />;
+  return user?.role === 'admin' ? children : <Navigate to="/officer" replace />;
 };
 
 function AppLayout({ children }) {
@@ -56,6 +67,7 @@ function App() {
         <Route path="/" element={<Home />} />
         <Route path="/login" element={<Login />} />
         <Route path="/admin-login" element={<AdminLogin />} />
+        <Route path="/bm-login" element={<BankManagerLogin />} />
         <Route path="/register" element={<Register />} />
         <Route path="/emi-calculator" element={<EMICalculator />} />
 
@@ -72,9 +84,10 @@ function App() {
         <Route path="/chat" element={<PrivateRoute><AppLayout><ChatPage /></AppLayout></PrivateRoute>} />
         <Route path="/chat/:userId" element={<PrivateRoute><AppLayout><ChatPage /></AppLayout></PrivateRoute>} />
 
-        {/* Officer / Admin routes */}
-        <Route path="/officer" element={<OfficerRoute><AppLayout><OfficerPanel /></AppLayout></OfficerRoute>} />
-        <Route path="/admin" element={<OfficerRoute><AppLayout><AdminDashboard /></AppLayout></OfficerRoute>} />
+        {/* Staff routes (BM + Admin) */}
+        <Route path="/officer" element={<StaffRoute><AppLayout><OfficerPanel /></AppLayout></StaffRoute>} />
+        <Route path="/admin" element={<AdminRoute><AppLayout><AdminDashboard /></AppLayout></AdminRoute>} />
+        <Route path="/admin/create-officer" element={<AdminRoute><AppLayout><CreateOfficer /></AppLayout></AdminRoute>} />
 
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

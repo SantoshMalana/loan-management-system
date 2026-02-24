@@ -6,15 +6,12 @@ import { AuthContext } from '../context/AuthContext';
 const fmt = (n) => `₹${Number(n || 0).toLocaleString('en-IN')}`;
 
 const STAGE_WORKFLOW = [
-    { key: 'submitted', label: 'Submitted', desc: 'Application received', icon: '📋', days: '1–2 working days' },
-    { key: 'under_review', label: 'Officer Review', desc: 'Loan Officer is verifying', icon: '🔍', days: '2–3 working days' },
-    { key: 'branch_review', label: 'Branch Manager', desc: 'Awaiting BM approval', icon: '🏦', days: '3–5 working days' },
-    { key: 'gm_review', label: 'GM Review', desc: 'General Manager reviewing', icon: '👔', days: '5–7 working days' },
-    { key: 'sanctioned', label: 'Sanctioned', desc: 'Loan approved & sanctioned', icon: '✅', days: '' },
+    { key: 'submitted', label: 'Submitted', desc: 'Application received', icon: '📋', days: '1–3 working days' },
+    { key: 'sanctioned', label: 'Sanctioned', desc: 'Bank Manager approved', icon: '✅', days: '' },
     { key: 'disbursed', label: 'Disbursed', desc: 'Amount credited to account', icon: '🎉', days: '' },
 ];
 
-const OFFICER_ROLES = ['loan_officer', 'branch_manager', 'general_manager', 'admin'];
+const STAFF_ROLES = ['branch_manager', 'admin'];
 
 const getCibilColor = (score) => {
     if (!score) return 'var(--text-muted)';
@@ -64,15 +61,14 @@ const LoanDetail = () => {
     const isReturned = loan.workflowStage === 'returned';
     const isSanctioned = loan.workflowStage === 'sanctioned';
     const isDisbursed = loan.workflowStage === 'disbursed';
-    const isApplicant = !OFFICER_ROLES.includes(user?.role);
-    const isOfficerUser = OFFICER_ROLES.includes(user?.role);
+    const isApplicant = !STAFF_ROLES.includes(user?.role);
+    const isOfficerUser = STAFF_ROLES.includes(user?.role);
 
     const currentStageIdx = STAGE_WORKFLOW.findIndex(s => s.key === loan.workflowStage);
 
-    // Determine what action the current officer can take
-    const canDoOfficerReview = isOfficerUser && ['submitted', 'under_review'].includes(loan.workflowStage);
-    const canDoManagerReview = ['branch_manager', 'general_manager', 'admin'].includes(user?.role) && loan.workflowStage === 'branch_review';
-    const canDoGMReview = ['general_manager', 'admin'].includes(user?.role) && loan.workflowStage === 'gm_review';
+    // BM can review loans awaiting review (submitted, returned, or legacy stages)
+    const reviewableStages = ['submitted', 'returned', 'under_review', 'branch_review', 'gm_review'];
+    const canDoBMReview = STAFF_ROLES.includes(user?.role) && reviewableStages.includes(loan.workflowStage);
     const canDisburse = isOfficerUser && loan.workflowStage === 'sanctioned';
     const canResubmit = isApplicant && isReturned;
 
@@ -580,7 +576,7 @@ const LoanDetail = () => {
                                             </div>
                                             {step.remarks && (
                                                 <div style={{ marginTop: '0.4rem', fontSize: '0.82rem', color: 'var(--text-secondary)', background: '#f9fafb', padding: '0.5rem 0.75rem', borderRadius: 'var(--radius-sm)', borderLeft: `3px solid ${color}` }}>
-                                                    "{step.remarks}"
+                                                    {step.remarks}
                                                 </div>
                                             )}
                                         </div>
@@ -707,7 +703,7 @@ const LoanDetail = () => {
                     </div>
 
                     {/* Action Remarks */}
-                    {(canDoOfficerReview || canDoManagerReview || canDoGMReview || canDisburse) && (
+                    {(canDoBMReview || canDisburse) && (
                         <div style={{ marginBottom: '1rem' }}>
                             <label style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-muted)', display: 'block', marginBottom: '0.4rem', textTransform: 'uppercase' }}>Remarks (required for Return/Reject)</label>
                             <textarea
@@ -720,46 +716,16 @@ const LoanDetail = () => {
                     )}
 
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.75rem' }}>
-                        {/* Loan Officer actions */}
-                        {canDoOfficerReview && (
+                        {/* BM / Admin Review Actions */}
+                        {canDoBMReview && (
                             <>
-                                <button className="btn btn-success" disabled={actionLoading} onClick={() => doAction('officer-review', 'approved')}>
-                                    ✅ Approve → Send to Branch Manager
+                                <button className="btn btn-success" disabled={actionLoading} onClick={() => doAction('bm-review', 'approved')}>
+                                    ✅ {loan.workflowStage === 'returned' ? 'Re-approve → Sanction' : 'Approve & Sanction Loan'}
                                 </button>
-                                <button className="btn btn-warning" disabled={actionLoading} onClick={() => doAction('officer-review', 'returned')}>
+                                <button className="btn btn-warning" disabled={actionLoading} onClick={() => doAction('bm-review', 'returned')}>
                                     ↩️ Return to Applicant
                                 </button>
-                                <button className="btn btn-danger" disabled={actionLoading} onClick={() => doAction('officer-review', 'rejected')}>
-                                    ❌ Reject Application
-                                </button>
-                            </>
-                        )}
-
-                        {/* Branch Manager actions */}
-                        {canDoManagerReview && (
-                            <>
-                                <button className="btn btn-success" disabled={actionLoading} onClick={() => doAction('manager-review', 'approved')}>
-                                    {loan.amount > 10000000 ? '✅ Approve → Send to GM' : '✅ Sanction Loan'}
-                                </button>
-                                <button className="btn btn-warning" disabled={actionLoading} onClick={() => doAction('manager-review', 'returned')}>
-                                    ↩️ Return to Loan Officer
-                                </button>
-                                <button className="btn btn-danger" disabled={actionLoading} onClick={() => doAction('manager-review', 'rejected')}>
-                                    ❌ Reject Application
-                                </button>
-                            </>
-                        )}
-
-                        {/* GM actions */}
-                        {canDoGMReview && (
-                            <>
-                                <button className="btn btn-success" disabled={actionLoading} onClick={() => doAction('gm-review', 'approved')}>
-                                    ✅ Final Approval — Sanction Loan
-                                </button>
-                                <button className="btn btn-warning" disabled={actionLoading} onClick={() => doAction('gm-review', 'returned')}>
-                                    ↩️ Return to Branch Manager
-                                </button>
-                                <button className="btn btn-danger" disabled={actionLoading} onClick={() => doAction('gm-review', 'rejected')}>
+                                <button className="btn btn-danger" disabled={actionLoading} onClick={() => doAction('bm-review', 'rejected')}>
                                     ❌ Reject Application
                                 </button>
                             </>
@@ -773,15 +739,16 @@ const LoanDetail = () => {
                         )}
 
                         {/* No action available */}
-                        {!canDoOfficerReview && !canDoManagerReview && !canDoGMReview && !canDisburse && (
+                        {!canDoBMReview && !canDisburse && (
                             <div className="alert alert-info" style={{ width: '100%', margin: 0 }}>
                                 <span>ℹ️</span>
                                 <div className="alert-body">
                                     <p>
-                                        {loan.workflowStage === 'rejected' && 'This loan has been rejected. No further actions available.'}
+                                        {loan.workflowStage === 'rejected' && 'This loan has been rejected.'}
                                         {loan.workflowStage === 'disbursed' && 'This loan has been fully disbursed.'}
-                                        {loan.workflowStage === 'returned' && 'This loan is awaiting applicant resubmission.'}
-                                        {!['rejected', 'disbursed', 'returned'].includes(loan.workflowStage) && `This loan is in "${loan.workflowStage?.replace(/_/g, ' ')}" stage — not in your review queue.`}
+                                        {loan.workflowStage === 'returned' && 'Awaiting applicant resubmission.'}
+                                        {!['rejected', 'disbursed', 'returned'].includes(loan.workflowStage) &&
+                                            `Loan is in "${loan.workflowStage?.replace(/_/g, ' ')}" stage — no action required from you.`}
                                     </p>
                                 </div>
                             </div>

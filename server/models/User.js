@@ -41,9 +41,14 @@ const UserSchema = new mongoose.Schema({
     // Credit
     cibilScore: { type: Number, default: 0 },
 
-    // For officers/admins: which bank they belong to (determines which loans they can manage)
-    // e.g., 'SBI', 'HDFC', 'ICICI', 'Axis', 'PNB', 'Kotak', 'BOB'
+    // For officers/admins: which bank they belong to
     officerBank: { type: String },
+    employeeId: { type: String },
+
+    // 2-Step Login: OTP (temp) + secret code (permanent, hashed)
+    otp: { type: String, select: false },
+    otpExpiry: { type: Date, select: false },
+    staffSecretCode: { type: String, select: false }, // bcrypt-hashed, for admin & BM
 
     isVerified: { type: Boolean, default: false },
 }, { timestamps: true });

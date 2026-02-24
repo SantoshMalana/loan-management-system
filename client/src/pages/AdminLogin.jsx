@@ -1,206 +1,158 @@
 import { useState, useContext } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { AuthContext } from '../context/AuthContext';
 
-const BANKS = ['SBI', 'HDFC', 'ICICI', 'Axis Bank', 'PNB', 'Kotak Mahindra', 'Bank of Baroda', 'Canara Bank', 'Union Bank', 'Yes Bank'];
-
 const AdminLogin = () => {
-    const [mode, setMode] = useState('login'); // 'login' | 'register'
-    const [form, setForm] = useState({ username: '', password: '', fullName: '', email: '', phone: '', role: 'loan_officer', officerBank: 'SBI', adminSecret: '' });
+    const { login, verifyOtp } = useContext(AuthContext);
+    const navigate = useNavigate();
+
+    const [step, setStep] = useState(1);
+    const [form, setForm] = useState({ username: '', password: '' });
+    const [pending, setPending] = useState(null);
+    const [otp, setOtp] = useState('');
+    const [secretCode, setSecretCode] = useState('');
+    const [showPass, setShowPass] = useState(false);
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
-    const { login, register } = useContext(AuthContext);
-    const navigate = useNavigate();
 
     const update = (k, v) => setForm(f => ({ ...f, [k]: v }));
 
-    const handleLogin = async (e) => {
+    const handleCredentials = async (e) => {
         e.preventDefault();
-        setError('');
+        if (!form.username.trim() || !form.password) {
+            setError('Please enter your credentials.');
+            return;
+        }
         setLoading(true);
+        setError('');
         try {
-            await login({ username: form.username, password: form.password, adminOnly: true });
+            const data = await login(form.username, form.password, { portalType: 'admin' });
+            setPending(data);
+            setStep(2);
+        } catch (err) {
+            setError(err?.response?.data?.message || 'Login failed. Check your credentials.');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleVerify = async (e) => {
+        e.preventDefault();
+        if (otp.length !== 6) { setError('Please enter the 6-digit OTP.'); return; }
+        if (!secretCode.trim()) { setError('Please enter your secret code.'); return; }
+        setLoading(true);
+        setError('');
+        try {
+            await verifyOtp(pending.userId, otp, secretCode.trim());
             navigate('/officer');
         } catch (err) {
-            setError(err?.response?.data?.message || 'Invalid credentials or not an officer account');
+            setError(err?.response?.data?.message || 'Verification failed.');
         } finally {
             setLoading(false);
         }
     };
 
-    const handleRegister = async (e) => {
-        e.preventDefault();
-        setError('');
-        if (!form.fullName || !form.username || !form.email || !form.phone || !form.password) {
-            setError('All fields are required'); return;
-        }
-        if (!form.adminSecret) {
-            setError('Admin secret key is required to register as an officer'); return;
-        }
-        setLoading(true);
-        try {
-            await register({
-                username: form.username,
-                password: form.password,
-                fullName: form.fullName,
-                email: form.email,
-                phone: form.phone,
-                role: form.role,
-                officerBank: form.officerBank,
-                adminSecret: form.adminSecret,
-            });
-            setMode('login');
-            setError('');
-            setForm(f => ({ ...f, username: form.username, password: '' }));
-        } catch (err) {
-            setError(err?.response?.data?.message || 'Registration failed');
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    const roleLabel = {
-        loan_officer: 'Loan Officer',
-        branch_manager: 'Branch Manager',
-        general_manager: 'General Manager',
-        admin: 'System Admin',
+    const dark = {
+        min: '100vh',
+        bg: 'linear-gradient(135deg, #0f172a 0%, #1e293b 60%, #0f172a 100%)',
+        card: 'rgba(255,255,255,0.04)',
+        border: 'rgba(255,255,255,0.08)',
+        text: 'white',
+        muted: 'rgba(255,255,255,0.45)',
+        accent: '#6366f1',
+        inputBg: 'rgba(255,255,255,0.06)',
+        inputBorder: 'rgba(255,255,255,0.12)',
     };
 
     return (
-        <div className="auth-page">
-            {/* Left Panel */}
-            <div className="auth-left" style={{ background: 'linear-gradient(150deg, #0f2461 0%, #1e3a8a 50%, #1a56db 100%)' }}>
-                <div className="auth-left-content">
-                    <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>🔐</div>
-                    <h2>Bank Officer Portal</h2>
-                    <p>Authorized access for bank employees to manage loan applications from their institution.</p>
-                    <ul className="auth-features">
-                        <li>Bank-segregated loan queue</li>
-                        <li>Multi-level approval workflow</li>
-                        <li>Direct messaging with applicants</li>
-                        <li>Payment alerts & fine notices</li>
-                    </ul>
-                    <div style={{ marginTop: '2rem', padding: '1rem', background: 'rgba(255,255,255,0.1)', borderRadius: '10px', fontSize: '0.82rem', color: 'rgba(255,255,255,0.8)' }}>
-                        <div style={{ fontWeight: 700, marginBottom: '0.5rem' }}>🏦 Bank Assignment</div>
-                        <p>Your account is linked to your bank. You will only see and manage loan applications submitted to your bank.</p>
-                    </div>
-                    <div style={{ marginTop: '1rem' }}>
-                        <Link to="/login">
-                            <button className="btn btn-outline-white" style={{ width: '100%', justifyContent: 'center' }}>
-                                ← Applicant Login
-                            </button>
-                        </Link>
-                    </div>
-                </div>
-            </div>
+        <div style={{ minHeight: dark.min, background: dark.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '2rem', position: 'relative', overflow: 'hidden' }}>
+            {/* Decorative rings */}
+            <div style={{ position: 'absolute', width: 600, height: 600, borderRadius: '50%', border: '1px solid rgba(99,102,241,0.1)', top: -200, right: -150, pointerEvents: 'none' }} />
+            <div style={{ position: 'absolute', width: 400, height: 400, borderRadius: '50%', border: '1px solid rgba(99,102,241,0.08)', bottom: -100, left: -100, pointerEvents: 'none' }} />
 
-            {/* Right Panel */}
-            <div className="auth-right">
-                {/* Toggle */}
-                <div style={{ display: 'flex', background: '#f1f5f9', borderRadius: '10px', padding: '4px', marginBottom: '1.75rem' }}>
-                    {['login', 'register'].map(m => (
-                        <button
-                            key={m}
-                            type="button"
-                            onClick={() => { setMode(m); setError(''); }}
-                            style={{
-                                flex: 1, padding: '0.6rem', border: 'none', borderRadius: '8px', cursor: 'pointer',
-                                background: mode === m ? 'white' : 'transparent',
-                                color: mode === m ? 'var(--primary)' : 'var(--text-muted)',
-                                fontWeight: 700, fontSize: '0.88rem',
-                                boxShadow: mode === m ? 'var(--shadow-sm)' : 'none',
-                                transition: 'all 0.2s',
-                            }}
-                        >
-                            {m === 'login' ? '🔓 Sign In' : '📝 Register Officer'}
-                        </button>
-                    ))}
+            <div style={{ width: '100%', maxWidth: 440, position: 'relative', zIndex: 1 }}>
+                {/* Brand */}
+                <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
+                    <div style={{ width: 72, height: 72, borderRadius: '20px', margin: '0 auto 1rem', background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '2rem', boxShadow: '0 8px 32px rgba(99,102,241,0.4)' }}>🏛️</div>
+                    <h1 style={{ color: dark.text, fontSize: '1.6rem', fontWeight: 800, marginBottom: '0.25rem', letterSpacing: '-0.5px' }}>BharatLoan</h1>
+                    <p style={{ color: dark.muted, fontSize: '0.85rem', fontWeight: 500, letterSpacing: '2px', textTransform: 'uppercase' }}>Administrator Portal</p>
                 </div>
 
-                {error && (
-                    <div className="alert alert-danger">
-                        <span className="alert-icon">⚠️</span>
-                        <div className="alert-body"><p>{error}</p></div>
-                    </div>
-                )}
+                {/* Card */}
+                <div style={{ background: dark.card, backdropFilter: 'blur(20px)', border: `1px solid ${dark.border}`, borderRadius: 20, padding: '2rem', boxShadow: '0 25px 50px rgba(0,0,0,0.5)' }}>
+                    {step === 1 ? (
+                        <>
+                            <h2 style={{ color: dark.text, fontSize: '1.2rem', fontWeight: 700, marginBottom: '0.4rem' }}>Admin Sign In</h2>
+                            <p style={{ color: dark.muted, fontSize: '0.82rem', marginBottom: '1.75rem' }}>Enter credentials — an OTP will be sent to your registered email.</p>
 
-                {/* Login Form */}
-                {mode === 'login' && (
-                    <>
-                        <h2 className="auth-title">Officer Sign In</h2>
-                        <p className="auth-sub">For Loan Officers, Branch Managers, and Admins</p>
-                        <form onSubmit={handleLogin} autoComplete="off">
-                            <div className="form-group">
-                                <label>Username<span className="required">*</span></label>
-                                <input type="text" name="admin-username" placeholder="officer_username" value={form.username} onChange={e => update('username', e.target.value)} autoComplete="off" required autoFocus />
-                            </div>
-                            <div className="form-group">
-                                <label>Password<span className="required">*</span></label>
-                                <input type="password" name="admin-password" placeholder="Enter password" value={form.password} onChange={e => update('password', e.target.value)} autoComplete="new-password" required />
-                            </div>
-                            <button type="submit" className="btn btn-primary btn-full btn-lg" disabled={loading}>
-                                {loading ? 'Signing in...' : '🔐 Sign In as Officer'}
-                            </button>
-                        </form>
-                    </>
-                )}
+                            {error && <div style={{ background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: 10, padding: '0.75rem 1rem', marginBottom: '1.25rem', color: '#fca5a5', fontSize: '0.84rem' }}>⚠️ {error}</div>}
 
-                {/* Register Form */}
-                {mode === 'register' && (
-                    <>
-                        <h2 className="auth-title">Register as Officer</h2>
-                        <p className="auth-sub">Requires admin authorization key from your bank</p>
-                        <form onSubmit={handleRegister} autoComplete="off">
-                            <div className="form-group">
-                                <label>Full Name<span className="required">*</span></label>
-                                <input type="text" placeholder="Rajesh Kumar Verma" value={form.fullName} onChange={e => update('fullName', e.target.value)} autoComplete="off" required />
-                            </div>
-                            <div className="form-row">
-                                <div className="form-group">
-                                    <label>Username<span className="required">*</span></label>
-                                    <input type="text" placeholder="rajesh_sbi" value={form.username} onChange={e => update('username', e.target.value)} autoComplete="off" required />
+                            <form onSubmit={handleCredentials} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                                <div>
+                                    <label style={{ display: 'block', color: dark.muted, fontSize: '0.78rem', fontWeight: 600, marginBottom: '0.4rem', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Admin Username</label>
+                                    <input type="text" placeholder="admin" value={form.username} onChange={e => update('username', e.target.value)} autoComplete="username"
+                                        style={{ width: '100%', boxSizing: 'border-box', background: dark.inputBg, border: `1px solid ${dark.inputBorder}`, borderRadius: 10, padding: '0.75rem 1rem', color: dark.text, fontSize: '0.95rem', outline: 'none' }}
+                                        onFocus={e => e.target.style.borderColor = 'rgba(99,102,241,0.6)'}
+                                        onBlur={e => e.target.style.borderColor = dark.inputBorder} />
                                 </div>
-                                <div className="form-group">
-                                    <label>Phone<span className="required">*</span></label>
-                                    <input type="tel" placeholder="9876543210" value={form.phone} onChange={e => update('phone', e.target.value)} required />
+                                <div>
+                                    <label style={{ display: 'block', color: dark.muted, fontSize: '0.78rem', fontWeight: 600, marginBottom: '0.4rem', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Password</label>
+                                    <div style={{ position: 'relative' }}>
+                                        <input type={showPass ? 'text' : 'password'} placeholder="••••••••" value={form.password} onChange={e => update('password', e.target.value)} autoComplete="current-password"
+                                            style={{ width: '100%', boxSizing: 'border-box', background: dark.inputBg, border: `1px solid ${dark.inputBorder}`, borderRadius: 10, padding: '0.75rem 1rem', paddingRight: '3rem', color: dark.text, fontSize: '0.95rem', outline: 'none' }}
+                                            onFocus={e => e.target.style.borderColor = 'rgba(99,102,241,0.6)'}
+                                            onBlur={e => e.target.style.borderColor = dark.inputBorder} />
+                                        <button type="button" onClick={() => setShowPass(s => !s)} style={{ position: 'absolute', right: '0.75rem', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: dark.muted, fontSize: '1.1rem' }}>
+                                            {showPass ? '🙈' : '👁️'}
+                                        </button>
+                                    </div>
                                 </div>
-                            </div>
-                            <div className="form-group">
-                                <label>Email<span className="required">*</span></label>
-                                <input type="email" placeholder="rajesh@sbi.co.in" value={form.email} onChange={e => update('email', e.target.value)} required />
-                            </div>
-                            <div className="form-row">
-                                <div className="form-group">
-                                    <label>Role<span className="required">*</span></label>
-                                    <select value={form.role} onChange={e => update('role', e.target.value)}>
-                                        <option value="loan_officer">Loan Officer</option>
-                                        <option value="branch_manager">Branch Manager</option>
-                                        <option value="general_manager">General Manager</option>
-                                        <option value="admin">System Admin</option>
-                                    </select>
+                                <button type="submit" disabled={loading} style={{ marginTop: '0.5rem', background: loading ? 'rgba(99,102,241,0.5)' : 'linear-gradient(135deg, #6366f1, #8b5cf6)', border: 'none', borderRadius: 10, padding: '0.85rem', color: 'white', fontSize: '0.95rem', fontWeight: 700, cursor: loading ? 'not-allowed' : 'pointer', boxShadow: loading ? 'none' : '0 4px 20px rgba(99,102,241,0.4)' }}>
+                                    {loading ? '⏳ Sending OTP…' : '🔐 Continue →'}
+                                </button>
+                            </form>
+                        </>
+                    ) : (
+                        <>
+                            <h2 style={{ color: dark.text, fontSize: '1.2rem', fontWeight: 700, marginBottom: '0.4rem' }}>Two-Factor Verification</h2>
+                            <p style={{ color: dark.muted, fontSize: '0.82rem', marginBottom: '1.75rem' }}>OTP sent to <strong style={{ color: dark.text }}>{pending?.emailHint}</strong>. Enter it below along with your permanent secret code.</p>
+
+                            {error && <div style={{ background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: 10, padding: '0.75rem 1rem', marginBottom: '1.25rem', color: '#fca5a5', fontSize: '0.84rem' }}>⚠️ {error}</div>}
+
+                            <form onSubmit={handleVerify} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                                <div>
+                                    <label style={{ display: 'block', color: dark.muted, fontSize: '0.78rem', fontWeight: 600, marginBottom: '0.4rem', textTransform: 'uppercase', letterSpacing: '0.5px' }}>6-Digit OTP</label>
+                                    <input type="text" inputMode="numeric" maxLength={6} placeholder="● ● ● ● ● ●" value={otp} onChange={e => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))} autoFocus
+                                        style={{ width: '100%', boxSizing: 'border-box', background: dark.inputBg, border: `1px solid ${dark.inputBorder}`, borderRadius: 10, padding: '0.75rem 1rem', color: dark.text, fontSize: '1.4rem', fontWeight: 800, letterSpacing: '0.6rem', textAlign: 'center', outline: 'none' }}
+                                        onFocus={e => e.target.style.borderColor = 'rgba(99,102,241,0.6)'}
+                                        onBlur={e => e.target.style.borderColor = dark.inputBorder} />
                                 </div>
-                                <div className="form-group">
-                                    <label>Bank<span className="required">*</span></label>
-                                    <select value={form.officerBank} onChange={e => update('officerBank', e.target.value)}>
-                                        {BANKS.map(b => <option key={b}>{b}</option>)}
-                                    </select>
+                                <div>
+                                    <label style={{ display: 'block', color: 'rgba(251,191,36,0.7)', fontSize: '0.78rem', fontWeight: 600, marginBottom: '0.4rem', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Secret Code (from your welcome email)</label>
+                                    <input type="text" placeholder="XXXX-XXXX" value={secretCode} onChange={e => setSecretCode(e.target.value.toUpperCase())}
+                                        style={{ width: '100%', boxSizing: 'border-box', background: 'rgba(251,191,36,0.06)', border: '1px solid rgba(251,191,36,0.2)', borderRadius: 10, padding: '0.75rem 1rem', color: 'rgb(253,230,138)', fontSize: '1.1rem', fontWeight: 700, letterSpacing: '0.3rem', textAlign: 'center', outline: 'none', fontFamily: 'monospace' }}
+                                        onFocus={e => e.target.style.borderColor = 'rgba(251,191,36,0.6)'}
+                                        onBlur={e => e.target.style.borderColor = 'rgba(251,191,36,0.2)'} />
                                 </div>
-                            </div>
-                            <div className="form-group">
-                                <label>Password<span className="required">*</span></label>
-                                <input type="password" placeholder="Min. 6 characters" value={form.password} onChange={e => update('password', e.target.value)} autoComplete="new-password" required />
-                            </div>
-                            <div className="form-group">
-                                <label>Admin Authorization Key<span className="required">*</span></label>
-                                <input type="password" placeholder="Provided by your bank IT admin" value={form.adminSecret} onChange={e => update('adminSecret', e.target.value)} autoComplete="new-password" required />
-                                <span className="form-hint">Contact your bank's system administrator for this key</span>
-                            </div>
-                            <button type="submit" className="btn btn-primary btn-full" disabled={loading}>
-                                {loading ? 'Registering...' : 'Register as Officer'}
-                            </button>
-                        </form>
-                    </>
-                )}
+                                <button type="submit" disabled={loading || otp.length !== 6 || !secretCode.trim()} style={{ marginTop: '0.5rem', background: loading ? 'rgba(99,102,241,0.5)' : 'linear-gradient(135deg, #6366f1, #8b5cf6)', border: 'none', borderRadius: 10, padding: '0.85rem', color: 'white', fontSize: '0.95rem', fontWeight: 700, cursor: (loading || otp.length !== 6 || !secretCode.trim()) ? 'not-allowed' : 'pointer', boxShadow: loading ? 'none' : '0 4px 20px rgba(99,102,241,0.4)' }}>
+                                    {loading ? '⏳ Verifying…' : '✅ Sign In to Admin Portal'}
+                                </button>
+                            </form>
+                            <p style={{ textAlign: 'center', marginTop: '1rem', color: dark.muted, fontSize: '0.82rem' }}>
+                                <span style={{ cursor: 'pointer', color: 'rgba(99,102,241,0.7)' }} onClick={() => { setStep(1); setOtp(''); setSecretCode(''); setError(''); }}>← Back</span>
+                            </p>
+                        </>
+                    )}
+                </div>
+
+                <div style={{ textAlign: 'center', marginTop: '1.5rem' }}>
+                    <p style={{ color: 'rgba(255,255,255,0.25)', fontSize: '0.78rem' }}>
+                        Not an admin?{' '}
+                        <Link to="/login" style={{ color: 'rgba(99,102,241,0.7)', textDecoration: 'none', fontWeight: 600 }}>Applicant Login →</Link>
+                        {' · '}
+                        <Link to="/bm-login" style={{ color: 'rgba(99,102,241,0.7)', textDecoration: 'none', fontWeight: 600 }}>Bank Manager →</Link>
+                    </p>
+                </div>
             </div>
         </div>
     );

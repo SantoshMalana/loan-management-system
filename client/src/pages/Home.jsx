@@ -4,7 +4,7 @@ import { AuthContext } from '../context/AuthContext';
 
 const loanTypes = [
     { emoji: '🎓', name: 'Education Loan', rate: '9.00% p.a.', max: '₹75 Lakhs', desc: 'Study in India or abroad. No collateral up to ₹7.5L.' },
-    { emoji: '🏠', name: 'Home Loan', rate: '8.75% p.a.', max: '₹5 Crores', desc: 'Bhuilt or under-construction property. 30-year tenure.' },
+    { emoji: '🏠', name: 'Home Loan', rate: '8.75% p.a.', max: '₹5 Crores', desc: 'Built or under-construction property. 30-year tenure.' },
     { emoji: '💳', name: 'Personal Loan', rate: '13.50% p.a.', max: '₹25 Lakhs', desc: 'No collateral. Quick disbursement in 48 hours.' },
     { emoji: '🏭', name: 'Business Loan', rate: '14.00% p.a.', max: '₹2 Crores', desc: 'Capital for MSMEs, startups, and established businesses.' },
     { emoji: '🚗', name: 'Vehicle Loan', rate: '10.50% p.a.', max: '₹50 Lakhs', desc: 'For two-wheelers, cars, and commercial vehicles.' },

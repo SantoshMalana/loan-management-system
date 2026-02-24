@@ -19,9 +19,9 @@ const GuarantorSchema = new mongoose.Schema({
 }, { _id: false });
 
 const ApprovalStepSchema = new mongoose.Schema({
-    stage: { type: String, enum: ['loan_officer', 'branch_manager', 'general_manager'] },
+    stage: { type: String, enum: ['loan_officer', 'branch_manager', 'general_manager', 'admin'] },
     officerName: String,
-    action: { type: String, enum: ['pending', 'approved', 'rejected', 'returned'] },
+    action: { type: String, enum: ['pending', 'approved', 'rejected', 'returned', 'resubmitted', 'disbursed', 'note'] },
     remarks: String,
     actionDate: Date
 }, { _id: false });

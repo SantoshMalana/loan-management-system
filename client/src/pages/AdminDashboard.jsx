@@ -163,7 +163,7 @@ const AdminDashboard = () => {
                                         </span>
                                     </td>
                                     <td style={{ fontSize: '0.78rem', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
-                                        {new Date(loan.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: '2-digit' })}
+                                        {new Date(loan.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
                                     </td>
                                     <td>
                                         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', minWidth: 160 }}>
@@ -393,7 +393,7 @@ const AdminDashboard = () => {
                                                 </span>
                                             </td>
                                             <td style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
-                                                {new Date(u.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: '2-digit' })}
+                                                {new Date(u.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
                                             </td>
                                             <td>
                                                 <Link to={`/chat/${u._id}`}>

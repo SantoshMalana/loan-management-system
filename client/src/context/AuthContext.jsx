@@ -21,10 +21,7 @@ export const AuthProvider = ({ children }) => {
                     const res = await api.get('/auth/me');
                     setUser(res.data);
                 } catch (err) {
-                    // 401 = expired/invalid token → clear it automatically
-                    if (err?.response?.status === 401 || err?.response?.status === 400) {
-                        clearAuth();
-                    }
+                    if ([400, 401].includes(err?.response?.status)) clearAuth();
                 }
             }
             setLoading(false);
@@ -32,23 +29,33 @@ export const AuthProvider = ({ children }) => {
         checkLoggedIn();
     }, []);
 
-    // Global response interceptor: if any API call returns 401, force logout
+    // Auto-logout on 401
     useEffect(() => {
-        const interceptorId = api.interceptors.response.use(
-            (response) => response,
-            (error) => {
-                if (error?.response?.status === 401) {
-                    // Token is no longer valid — clear and redirect to login
-                    clearAuth();
-                }
-                return Promise.reject(error);
-            }
+        const id = api.interceptors.response.use(
+            (r) => r,
+            (err) => { if (err?.response?.status === 401) clearAuth(); return Promise.reject(err); }
         );
-        return () => api.interceptors.response.eject(interceptorId);
+        return () => api.interceptors.response.eject(id);
     }, []);
 
-    const login = async (credentials) => {
-        const res = await api.post('/auth/login', credentials);
+    /**
+     * STEP 1 — Submit credentials.
+     * Returns { pending: true, userId, emailHint, role } if credentials are valid.
+     * The backend sends an OTP to the user's email.
+     */
+    const login = async (username, password, options = {}) => {
+        const res = await api.post('/auth/login', { username, password, ...options });
+        return res.data;
+    };
+
+    /**
+     * STEP 2 — Verify OTP (applicants) or OTP + secretCode (staff).
+     * On success, stores token and updates user state.
+     */
+    const verifyOtp = async (userId, otp, secretCode = null) => {
+        const body = { userId, otp };
+        if (secretCode) body.secretCode = secretCode;
+        const res = await api.post('/auth/verify-otp', body);
         localStorage.setItem('token', res.data.token);
         localStorage.setItem('user', JSON.stringify(res.data));
         setUser(res.data);
@@ -59,12 +66,10 @@ export const AuthProvider = ({ children }) => {
         await api.post('/auth/register', userData);
     };
 
-    const logout = () => {
-        clearAuth();
-    };
+    const logout = () => clearAuth();
 
     return (
-        <AuthContext.Provider value={{ user, login, register, logout, loading }}>
+        <AuthContext.Provider value={{ user, login, verifyOtp, register, logout, loading }}>
             {children}
         </AuthContext.Provider>
     );

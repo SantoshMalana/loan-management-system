@@ -19,7 +19,7 @@ router.post('/', verifyToken, async (req, res) => {
             sender: req.user.id,
             receiver: receiverId,
             loan: loanId || undefined,
-            bankName: sender?.officerBank || receiver?.officerBank,
+            bankName: sender?.officerBank || receiver?.officerBank || undefined,
             message,
             type: type || 'general',
         });

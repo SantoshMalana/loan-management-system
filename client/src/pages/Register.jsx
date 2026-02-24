@@ -32,6 +32,7 @@ const Register = () => {
         if (form.password !== form.confirmPassword) return 'Passwords do not match';
         if (form.password.length < 6) return 'Password must be at least 6 characters';
         if (!/^\d{10}$/.test(form.phone)) return 'Enter valid 10-digit phone number';
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) return 'Enter a valid email address';
         return null;
     };
 

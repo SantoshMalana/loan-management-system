@@ -7,8 +7,8 @@ const fmt = (n) => `₹${Number(n).toLocaleString('en-IN')}`;
 
 const STAGE_LABELS = {
     submitted: 'Submitted',
-    under_review: 'Officer Review',
-    branch_review: 'Branch Review',
+    under_review: 'Under Review',
+    branch_review: 'BM Review',
     gm_review: 'GM Review',
     sanctioned: 'Sanctioned ✅',
     disbursed: 'Disbursed 🎉',
@@ -30,17 +30,17 @@ const STAGE_COLORS = {
 };
 
 const STAGE_MESSAGES = {
-    submitted: 'Your application has been submitted and is waiting for a loan officer to review.',
-    under_review: 'A loan officer is actively reviewing your application.',
-    branch_review: 'The loan officer has approved your application and forwarded it to the Branch Manager.',
-    gm_review: 'Your high-value loan is under review by the General Manager.',
+    submitted: 'Your application has been submitted and is awaiting review by your Bank Manager.',
+    under_review: 'Your application is under review.',
+    branch_review: 'Your application is being reviewed by the Bank Manager.',
+    gm_review: 'Your high-value loan is under review by senior management.',
+    returned: 'Your application was returned for corrections. Please review feedback and resubmit.',
     sanctioned: 'Great news! Your loan has been sanctioned. Disbursement will be processed shortly.',
-    disbursed: 'Your loan amount has been credited to your account. Check your EMI schedule.',
-    rejected: 'Your application was not approved. Please check the loan details for the rejection reason.',
-    returned: 'The officer has returned your application for correction. Please review and resubmit.',
+    disbursed: 'Your loan amount has been credited to your account. Check your EMI schedule below.',
+    rejected: 'Your application was not approved. Check the loan details for the rejection reason.',
 };
 
-const OFFICER_ROLES = ['loan_officer', 'branch_manager', 'general_manager', 'admin'];
+const STAFF_ROLES = ['branch_manager', 'admin'];
 
 const Dashboard = () => {
     const [loans, setLoans] = useState([]);
@@ -67,7 +67,7 @@ const Dashboard = () => {
 
     useEffect(() => { fetchData(); }, []);
 
-    const isOfficer = OFFICER_ROLES.includes(user?.role);
+    const isOfficer = STAFF_ROLES.includes(user?.role);
 
     const filtered = filter === 'all' ? loans : loans.filter(l => l.workflowStage === filter || l.status === filter);
 
