@@ -1,14 +1,20 @@
-import { useEffect, useState, useContext } from 'react';
-import { Link } from 'react-router-dom';
+import { useEffect, useState, useContext, useCallback } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import api from '../api/axios';
 import { AuthContext } from '../context/AuthContext';
 
 const fmt = (n) => `₹${Number(n || 0).toLocaleString('en-IN')}`;
 
 const STAGE_LABELS = {
-    submitted: 'Submitted', under_review: 'Officer Review', branch_review: 'Branch Review',
-    gm_review: 'GM Review', sanctioned: 'Sanctioned', disbursed: 'Disbursed',
-    rejected: 'Rejected', returned: 'Returned',
+    submitted: 'Submitted',
+    under_review: 'Under Review',
+    branch_review: 'BM Review',
+    gm_review: 'GM Review',
+    sanctioned: 'Sanctioned',
+    disbursed: 'Disbursed',
+    rejected: 'Rejected',
+    returned: 'Returned',
+    closed: 'Closed',
 };
 
 const STAGE_COLORS = {
@@ -23,96 +29,113 @@ const STAGE_COLORS = {
 };
 
 const getCibilColor = (score) => {
-    if (!score) return 'var(--text-muted)';
-    if (score >= 750) return '#16a34a';
-    if (score >= 650) return '#ca8a04';
-    return '#dc2626';
+    if (!score) return { color: '#6b7280', bg: '#f9fafb', label: 'N/A' };
+    if (score >= 750) return { color: '#15803d', bg: '#f0fdf4', label: `${score} — Excellent` };
+    if (score >= 700) return { color: '#16a34a', bg: '#f0fdf4', label: `${score} — Good` };
+    if (score >= 650) return { color: '#ca8a04', bg: '#fefce8', label: `${score} — Fair` };
+    return { color: '#dc2626', bg: '#fef2f2', label: `${score} — Poor` };
 };
 
-const OFFICER_ROLES = ['loan_officer', 'branch_manager', 'general_manager', 'admin'];
+const REVIEWABLE_STAGES = ['submitted', 'under_review', 'branch_review', 'gm_review', 'returned'];
+const LOAN_EMOJIS = { Education: '🎓', Home: '🏠', Personal: '💳', Business: '🏭', Vehicle: '🚗', Gold: '🥇' };
 
 const OfficerPanel = () => {
     const [loans, setLoans] = useState([]);
     const [stats, setStats] = useState({});
+    const [users, setUsers] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [selectedStage, setSelectedStage] = useState('all');
+    const [tab, setTab] = useState('queue');
+    const [stageFilter, setStageFilter] = useState('all');
+    const [typeFilter, setTypeFilter] = useState('all');
     const [remarks, setRemarks] = useState({});
     const [actionLoading, setActionLoading] = useState(null);
-    const [toast, setToast] = useState('');
+    const [toast, setToast] = useState({ msg: '', type: '' });
+    const [lastRefresh, setLastRefresh] = useState(null);
     const { user } = useContext(AuthContext);
 
-    const fetchData = async () => {
-        try {
-            const [loansRes, statsRes] = await Promise.all([
-                api.get('/loans'),
-                api.get('/loans/stats'),
-            ]);
-            setLoans(loansRes.data);
-            setStats(statsRes.data);
-        } catch (err) { console.error(err); }
-        finally { setLoading(false); }
+    const showToast = (msg, type = 'success') => {
+        setToast({ msg, type });
+        setTimeout(() => setToast({ msg: '', type: '' }), 4000);
     };
 
-    useEffect(() => { fetchData(); }, []);
+    // ── Fetch each endpoint independently so one failure doesn't block others ──
+    const fetchAll = useCallback(async (silent = false) => {
+        if (!silent) setLoading(true);
+        try {
+            // Fetch loans — CRITICAL
+            const loansRes = await api.get('/loans');
+            setLoans(loansRes.data);
+        } catch (err) {
+            console.error('Failed to fetch loans:', err);
+        }
+
+        try {
+            // Fetch stats — CRITICAL
+            const statsRes = await api.get('/loans/stats');
+            setStats(statsRes.data);
+        } catch (err) {
+            console.error('Failed to fetch stats:', err);
+        }
+
+        try {
+            // Fetch applicants list — OPTIONAL (fails silently)
+            const usersRes = await api.get('/auth/users');
+            setUsers(usersRes.data);
+        } catch (err) {
+            // Endpoint may not exist yet — silent fail, doesn't break the panel
+        }
+
+        setLastRefresh(new Date());
+        if (!silent) setLoading(false);
+    }, []);
+
+    // Initial load
+    useEffect(() => {
+        fetchAll(false);
+    }, [fetchAll]);
+
+    // Auto-refresh every 15 seconds (real-time updates)
+    useEffect(() => {
+        const interval = setInterval(() => {
+            fetchAll(true); // silent = no loading spinner
+        }, 15000);
+        return () => clearInterval(interval);
+    }, [fetchAll]);
 
     if (loading) return <div className="spinner" />;
 
-    // Determine which stages this role manages
-    const roleStage = {
-        loan_officer: ['submitted', 'under_review', 'returned'],
-        branch_manager: ['branch_review'],
-        general_manager: ['gm_review'],
-        admin: ['submitted', 'under_review', 'branch_review', 'gm_review', 'sanctioned'],
-    };
+    const queue = loans.filter(l => REVIEWABLE_STAGES.includes(l.workflowStage));
+    const sanctionedLoans = loans.filter(l => l.workflowStage === 'sanctioned');
 
-    const myStages = roleStage[user?.role] || ['submitted', 'under_review', 'branch_review', 'gm_review'];
-    const myLoans = loans.filter(l => myStages.includes(l.workflowStage));
-    const filtered = selectedStage === 'all' ? myLoans : myLoans.filter(l => l.workflowStage === selectedStage);
+    const filtered = loans.filter(l => {
+        if (stageFilter !== 'all' && l.workflowStage !== stageFilter) return false;
+        if (typeFilter !== 'all' && l.loanType !== typeFilter) return false;
+        return true;
+    });
 
-    const urgentLoans = myLoans.filter(l => l.amount >= 10000000);
-
-    // Determine the endpoint based on loan's current stage
-    const getEndpoint = (loanStage) => {
-        if (['submitted', 'under_review'].includes(loanStage)) return 'officer-review';
-        if (loanStage === 'branch_review') return 'manager-review';
-        if (loanStage === 'gm_review') return 'gm-review';
-        return null;
-    };
-
-    // Determine the approve button label based on loan's stage and amount
-    const getApproveLabel = (loan) => {
-        if (['submitted', 'under_review'].includes(loan.workflowStage)) {
-            return loan.amount > 10000000 ? '✅ Approve → Send to GM' : '✅ Approve → Send to Branch Manager';
-        }
-        if (loan.workflowStage === 'branch_review') {
-            return loan.amount > 10000000 ? '✅ Approve → Send to GM' : '✅ Sanction Loan';
-        }
-        if (loan.workflowStage === 'gm_review') return '✅ Final Approval — Sanction';
-        return '✅ Approve';
-    };
-
-    const doAction = async (loanId, loanStage, action) => {
-        const endpoint = getEndpoint(loanStage);
-        if (!endpoint) return;
+    // ── Actions ──────────────────────────────────────────────────────────────
+    const doAction = async (loanId, action) => {
         const remark = remarks[loanId] || '';
         if (!remark && action !== 'approved') {
-            setToast(`⚠️ Please enter remarks before returning or rejecting.`);
-            setTimeout(() => setToast(''), 3000);
+            showToast('Please enter remarks before returning or rejecting.', 'warning');
             return;
         }
         setActionLoading(loanId + action);
         try {
-            await api.put(`/loans/${loanId}/${endpoint}`, {
+            await api.put(`/loans/${loanId}/bm-review`, {
                 action,
-                remarks: remark || `${action} by ${user?.fullName || user?.username}`
+                remarks: remark || `${action.charAt(0).toUpperCase() + action.slice(1)} by ${user?.fullName || user?.username}`,
             });
-            setToast(`✅ Loan ${action} successfully!`);
-            setTimeout(() => setToast(''), 3000);
             setRemarks(r => { const n = { ...r }; delete n[loanId]; return n; });
-            await fetchData();
+            showToast(
+                action === 'approved' ? '✅ Loan sanctioned successfully!' :
+                    action === 'rejected' ? '❌ Loan rejected.' :
+                        '↩️ Returned to applicant for corrections.',
+                action === 'approved' ? 'success' : action === 'rejected' ? 'error' : 'warning'
+            );
+            await fetchAll(true);
         } catch (err) {
-            setToast(`❌ ${err?.response?.data?.message || 'Action failed'}`);
-            setTimeout(() => setToast(''), 4000);
+            showToast(err?.response?.data?.message || 'Action failed.', 'error');
         } finally {
             setActionLoading(null);
         }
@@ -122,278 +145,412 @@ const OfficerPanel = () => {
         setActionLoading(loanId + 'disburse');
         try {
             await api.put(`/loans/${loanId}/disburse`, {});
-            setToast('✅ Loan disbursed and EMI schedule generated!');
-            setTimeout(() => setToast(''), 3000);
-            await fetchData();
+            showToast('🏦 Loan disbursed! EMI schedule generated.', 'success');
+            await fetchAll(true);
         } catch (err) {
-            setToast(`❌ ${err?.response?.data?.message || 'Disbursement failed'}`);
-            setTimeout(() => setToast(''), 4000);
+            showToast(err?.response?.data?.message || 'Disbursement failed.', 'error');
         } finally {
             setActionLoading(null);
         }
     };
 
-    const roleTitle = {
-        loan_officer: '🔍 Loan Officer Panel',
-        branch_manager: '🏦 Branch Manager Panel',
-        general_manager: '👔 General Manager Panel',
-        admin: '🏛️ Admin Panel',
+    const queueCount = queue.length + sanctionedLoans.length;
+
+    // ── Loan Card ─────────────────────────────────────────────────────────────
+    const LoanCard = ({ loan }) => {
+        const sc = STAGE_COLORS[loan.workflowStage] || {};
+        const cibil = getCibilColor(loan.user?.cibilScore);
+        const remark = remarks[loan._id] || '';
+        const isActing = actionLoading?.startsWith(loan._id);
+        const canAct = REVIEWABLE_STAGES.includes(loan.workflowStage);
+        const isBigLoan = loan.amount >= 5000000;
+        const emiRatio = loan.emiAmount && loan.user?.monthlyIncome
+            ? Math.round((loan.emiAmount / loan.user.monthlyIncome) * 100) : null;
+
+        return (
+            <div className="card" style={{
+                padding: '1.25rem', marginBottom: '1rem',
+                border: isBigLoan ? '2px solid #f59e0b' : '1px solid var(--border)',
+            }}>
+                {/* Top row */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '1rem' }}>
+                    <div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.3rem', flexWrap: 'wrap' }}>
+                            <span style={{ fontFamily: 'monospace', fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-muted)' }}>
+                                {loan.applicationNumber}
+                            </span>
+                            {isBigLoan && (
+                                <span style={{ fontSize: '0.65rem', background: '#fef3c7', color: '#92400e', padding: '2px 7px', borderRadius: 4, fontWeight: 700 }}>
+                                    ⚡ HIGH VALUE
+                                </span>
+                            )}
+                            <span style={{ padding: '2px 10px', borderRadius: 12, fontSize: '0.73rem', fontWeight: 700, background: sc.bg, color: sc.color, border: `1px solid ${sc.border}` }}>
+                                {STAGE_LABELS[loan.workflowStage] || loan.workflowStage}
+                            </span>
+                        </div>
+                        <div style={{ fontWeight: 700, fontSize: '1rem' }}>
+                            {LOAN_EMOJIS[loan.loanType] || '📄'} {loan.loanType} Loan · {fmt(loan.amount)}
+                        </div>
+                        <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '2px' }}>
+                            Applied {new Date(loan.submittedAt || loan.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
+                            {loan.bankName && <> · <strong>{loan.bankName}</strong></>}
+                            {loan.termMonths && <> · {loan.termMonths} months</>}
+                            {loan.interestRate && <> · {loan.interestRate}% p.a.</>}
+                        </div>
+                        {loan.emiAmount && (
+                            <div style={{ fontSize: '0.78rem', marginTop: '2px' }}>
+                                EMI: <strong>{fmt(loan.emiAmount)}/month</strong>
+                                {emiRatio !== null && (
+                                    <span style={{ marginLeft: '0.5rem', color: emiRatio > 50 ? '#dc2626' : emiRatio > 35 ? '#ca8a04' : '#16a34a', fontWeight: 700 }}>
+                                        ({emiRatio}% of income — {emiRatio > 50 ? 'High Risk' : emiRatio > 35 ? 'Moderate' : 'Healthy'})
+                                    </span>
+                                )}
+                            </div>
+                        )}
+                    </div>
+                    <Link to={`/loans/${loan._id}`}>
+                        <button className="btn btn-outline btn-sm">View Full Details →</button>
+                    </Link>
+                </div>
+
+                {/* Applicant info grid */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '0.75rem', background: '#f9fafb', borderRadius: 8, padding: '0.85rem', marginBottom: '1rem' }}>
+                    <InfoCell label="Applicant" value={loan.user?.fullName || 'N/A'} sub={loan.user?.phone} />
+                    <InfoCell label="CIBIL Score">
+                        <span style={{ fontWeight: 800, fontSize: '0.88rem', color: cibil.color, background: cibil.bg, padding: '2px 8px', borderRadius: 6 }}>
+                            {cibil.label}
+                        </span>
+                    </InfoCell>
+                    <InfoCell label="Monthly Income" value={loan.user?.monthlyIncome ? fmt(loan.user.monthlyIncome) : '—'} />
+                    <InfoCell label="Employment" value={loan.user?.employmentType || '—'} />
+                    <InfoCell label="Collateral">
+                        {loan.collateralRequired
+                            ? <span style={{ color: '#ca8a04', fontWeight: 700 }}>⚠️ Required</span>
+                            : <span style={{ color: '#16a34a', fontWeight: 700 }}>✅ Not Required</span>}
+                    </InfoCell>
+                    {loan.purpose && <InfoCell label="Purpose" value={loan.purpose} />}
+                </div>
+
+                {/* Previous remarks */}
+                {loan.approvalChain?.length > 0 && (
+                    <div style={{ marginBottom: '1rem', background: '#fffbeb', borderRadius: 6, padding: '0.75rem', border: '1px solid #fde68a' }}>
+                        <div style={{ fontSize: '0.72rem', fontWeight: 700, color: '#92400e', marginBottom: '0.4rem', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                            Previous Remarks
+                        </div>
+                        {loan.approvalChain.slice(-2).map((step, i) => (
+                            <div key={i} style={{ fontSize: '0.78rem', color: '#78350f', marginTop: i > 0 ? '0.25rem' : 0 }}>
+                                <strong>{step.officerName}</strong> [{step.action}]: {step.remarks || '—'}
+                            </div>
+                        ))}
+                    </div>
+                )}
+
+                {/* Action panel */}
+                {canAct && (
+                    <div style={{ borderTop: '1px solid var(--border)', paddingTop: '1rem' }}>
+                        <input
+                            type="text"
+                            placeholder="Remarks (required for Return / Reject)..."
+                            value={remark}
+                            onChange={e => setRemarks(r => ({ ...r, [loan._id]: e.target.value }))}
+                            style={{ width: '100%', fontSize: '0.85rem', marginBottom: '0.75rem' }}
+                        />
+                        <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
+                            <button className="btn btn-success" disabled={isActing} onClick={() => doAction(loan._id, 'approved')}>
+                                {actionLoading === loan._id + 'approved' ? '⏳ Processing...' : '✅ Sanction Loan'}
+                            </button>
+                            <button className="btn btn-warning" disabled={isActing} onClick={() => doAction(loan._id, 'returned')}>
+                                {actionLoading === loan._id + 'returned' ? '⏳...' : '↩️ Return for Correction'}
+                            </button>
+                            <button className="btn btn-danger" disabled={isActing} onClick={() => doAction(loan._id, 'rejected')}>
+                                {actionLoading === loan._id + 'rejected' ? '⏳...' : '❌ Reject'}
+                            </button>
+                            {loan.user?._id && (
+                                <Link to={`/chat/${loan.user._id}`}>
+                                    <button className="btn btn-outline">💬 Message Applicant</button>
+                                </Link>
+                            )}
+                        </div>
+                    </div>
+                )}
+
+                {/* Disburse panel */}
+                {loan.workflowStage === 'sanctioned' && (
+                    <div style={{ borderTop: '1px solid var(--border)', paddingTop: '1rem' }}>
+                        <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 8, padding: '0.75rem', marginBottom: '0.75rem', fontSize: '0.85rem', color: '#15803d' }}>
+                            ✅ Loan sanctioned — ready for disbursement. EMI schedule will be auto-generated on disbursement.
+                        </div>
+                        <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
+                            <button className="btn btn-primary" disabled={actionLoading === loan._id + 'disburse'} onClick={() => doDisburse(loan._id)}>
+                                {actionLoading === loan._id + 'disburse' ? '⏳ Processing...' : '🏦 Disburse & Generate EMI Schedule'}
+                            </button>
+                            {loan.user?._id && (
+                                <Link to={`/chat/${loan.user._id}`}>
+                                    <button className="btn btn-outline">💬 Notify Applicant</button>
+                                </Link>
+                            )}
+                        </div>
+                    </div>
+                )}
+            </div>
+        );
+    };
+
+    // ── Loan Row (All Loans table) ────────────────────────────────────────────
+    const LoanRow = ({ loan }) => {
+        const sc = STAGE_COLORS[loan.workflowStage] || {};
+        const cibil = getCibilColor(loan.user?.cibilScore);
+        return (
+            <tr>
+                <td style={{ fontFamily: 'monospace', fontSize: '0.78rem', fontWeight: 600 }}>
+                    {loan.applicationNumber || loan._id.slice(-8).toUpperCase()}
+                </td>
+                <td>
+                    <div className="td-main">{loan.user?.fullName || 'N/A'}</div>
+                    <div className="td-sub">{loan.user?.phone}</div>
+                </td>
+                <td>
+                    <span style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--primary)', background: 'var(--primary-light)', padding: '2px 8px', borderRadius: 10 }}>
+                        {loan.bankName || '—'}
+                    </span>
+                </td>
+                <td>{LOAN_EMOJIS[loan.loanType]} {loan.loanType}</td>
+                <td style={{ fontWeight: 700 }}>{fmt(loan.amount)}</td>
+                <td>
+                    <span style={{ fontWeight: 700, fontSize: '0.75rem', color: cibil.color, background: cibil.bg, padding: '2px 8px', borderRadius: 10 }}>
+                        {cibil.label}
+                    </span>
+                </td>
+                <td>
+                    <span style={{ padding: '3px 10px', borderRadius: 12, fontSize: '0.73rem', fontWeight: 700, background: sc.bg, color: sc.color, border: `1px solid ${sc.border}`, whiteSpace: 'nowrap' }}>
+                        {STAGE_LABELS[loan.workflowStage] || loan.workflowStage}
+                    </span>
+                </td>
+                <td style={{ fontSize: '0.78rem', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
+                    {new Date(loan.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
+                </td>
+                <td>
+                    <Link to={`/loans/${loan._id}`}>
+                        <button className="btn btn-primary btn-sm">Review →</button>
+                    </Link>
+                </td>
+            </tr>
+        );
     };
 
     return (
         <div className="anim-fade">
-            {/* Toast Notification */}
-            {toast && (
+            {/* Toast */}
+            {toast.msg && (
                 <div style={{
                     position: 'fixed', top: 20, right: 20, zIndex: 9999,
-                    background: toast.startsWith('✅') ? '#16a34a' : toast.startsWith('⚠️') ? '#f59e0b' : '#dc2626',
+                    background: toast.type === 'success' ? '#16a34a' : toast.type === 'error' ? '#dc2626' : '#f59e0b',
                     color: 'white', padding: '0.75rem 1.25rem', borderRadius: 10,
-                    fontWeight: 600, fontSize: '0.88rem', boxShadow: '0 4px 20px rgba(0,0,0,0.15)',
-                    maxWidth: 340
+                    fontWeight: 600, fontSize: '0.88rem', boxShadow: '0 4px 20px rgba(0,0,0,0.2)',
                 }}>
-                    {toast}
+                    {toast.msg}
                 </div>
             )}
 
             {/* Header */}
-            <div style={{ marginBottom: '1.5rem' }}>
-                <h2>{roleTitle[user?.role] || '🏛️ Officer Panel'}</h2>
-                <p style={{ fontSize: '0.88rem', color: 'var(--text-muted)' }}>
-                    Role: <strong style={{ textTransform: 'capitalize', color: 'var(--primary)' }}>{user?.role?.replace(/_/g, ' ')}</strong>
-                    {user?.officerBank && <> · <strong>{user.officerBank}</strong> bank loans only</>}
-                    {' · '}{myLoans.length} loan{myLoans.length !== 1 ? 's' : ''} in your queue
-                </p>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '0.75rem' }}>
+                <div>
+                    <h2>{user?.officerBank ? `🏦 ${user.officerBank}` : '🏦'} — Bank Manager Panel</h2>
+                    <p style={{ fontSize: '0.85rem', marginTop: '0.2rem', color: 'var(--text-muted)' }}>
+                        Logged in as <strong style={{ color: 'var(--primary)', textTransform: 'capitalize' }}>{user?.role?.replace(/_/g, ' ')}</strong>
+                        {user?.officerBank && <> · Viewing <strong>{user.officerBank}</strong> loans only</>}
+                        {lastRefresh && (
+                            <span style={{ marginLeft: '0.75rem', fontSize: '0.72rem' }}>
+                                · Updated {lastRefresh.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
+                            </span>
+                        )}
+                    </p>
+                </div>
+                <div style={{ display: 'flex', gap: '0.75rem' }}>
+                    <button className="btn btn-outline" onClick={() => fetchAll(false)}>🔄 Refresh</button>
+                    <Link to="/chat">
+                        <button className="btn btn-outline">💬 Messages</button>
+                    </Link>
+                </div>
             </div>
 
             {/* Stats */}
-            <div className="stat-grid" style={{ marginBottom: '1.5rem' }}>
-                <div className="stat-card amber">
-                    <div className="stat-label">In My Queue</div>
-                    <div className="stat-value">{myLoans.length}</div>
-                    <div className="stat-sub">Awaiting your action</div>
-                    <div className="stat-icon">📋</div>
-                </div>
-                <div className="stat-card red">
-                    <div className="stat-label">High-Value (≥₹1Cr)</div>
-                    <div className="stat-value">{urgentLoans.length}</div>
-                    <div className="stat-sub">Needs GM review</div>
-                    <div className="stat-icon">⚡</div>
-                </div>
-                <div className="stat-card blue">
-                    <div className="stat-label">Total Applications</div>
-                    <div className="stat-value">{stats.total || 0}</div>
-                    <div className="stat-sub">All time</div>
-                    <div className="stat-icon">📊</div>
-                </div>
-                <div className="stat-card green">
-                    <div className="stat-label">Sanctioned</div>
-                    <div className="stat-value">{stats.approved || 0}</div>
-                    <div className="stat-sub">Approved loans</div>
-                    <div className="stat-icon">✅</div>
-                </div>
+            <div className="stat-grid anim-up-1" style={{ marginBottom: '1.5rem' }}>
+                {[
+                    { label: 'Total Loans', value: stats.total || 0, sub: 'All applications', icon: '📋', cls: 'blue' },
+                    { label: 'Awaiting Action', value: stats.awaitingAction || 0, sub: 'Need your review', icon: '⏳', cls: 'amber' },
+                    { label: 'Sanctioned', value: stats.approved || 0, sub: 'Approved', icon: '✅', cls: 'green' },
+                    { label: 'Disbursed', value: stats.disbursed || 0, sub: 'Active loans', icon: '🏦', cls: '' },
+                    { label: 'Rejected', value: stats.rejected || 0, sub: 'Not approved', icon: '❌', cls: 'red' },
+                    { label: 'Portfolio Value', value: fmt(stats.totalAmount || 0), sub: 'Total amount', icon: '💰', cls: 'blue', small: true },
+                ].map(s => (
+                    <div key={s.label} className={`stat-card ${s.cls}`}>
+                        <div className="stat-label">{s.label}</div>
+                        <div className="stat-value" style={s.small ? { fontSize: '1.1rem' } : {}}>{s.value}</div>
+                        <div className="stat-sub">{s.sub}</div>
+                        <div className="stat-icon">{s.icon}</div>
+                    </div>
+                ))}
             </div>
 
-            {/* Urgent Notice */}
-            {urgentLoans.length > 0 && (
-                <div className="alert alert-warning" style={{ marginBottom: '1.25rem' }}>
-                    <span className="alert-icon">⚡</span>
-                    <div className="alert-body">
-                        <strong>High-Value Loans Require Special Attention</strong>
-                        <p>{urgentLoans.length} loan(s) above ₹1 Crore require General Manager approval as per banking policy.</p>
-                    </div>
-                </div>
-            )}
-
-            {/* Stage Filter */}
-            <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem', flexWrap: 'wrap', alignItems: 'center' }}>
-                <span style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-muted)' }}>Filter:</span>
-                <button className={`btn btn-sm ${selectedStage === 'all' ? 'btn-primary' : 'btn-outline'}`} onClick={() => setSelectedStage('all')}>
-                    All ({myLoans.length})
-                </button>
-                {myStages.map(s => {
-                    const count = myLoans.filter(l => l.workflowStage === s).length;
-                    return (
-                        <button key={s} className={`btn btn-sm ${selectedStage === s ? 'btn-primary' : 'btn-outline'}`} onClick={() => setSelectedStage(s)}>
-                            {STAGE_LABELS[s]} {count > 0 && `(${count})`}
-                        </button>
-                    );
-                })}
+            {/* Tabs */}
+            <div style={{ display: 'flex', gap: 0, marginBottom: '1.5rem', borderBottom: '2px solid var(--border)' }}>
+                {[
+                    { key: 'queue', label: `⚡ Action Queue (${queueCount})`, alert: queueCount > 0 },
+                    { key: 'all', label: `📋 All Loans (${loans.length})` },
+                    { key: 'applicants', label: `👥 Applicants (${users.length})` },
+                ].map(t => (
+                    <button key={t.key} onClick={() => setTab(t.key)} style={{
+                        background: 'none', border: 'none', padding: '0.6rem 1.25rem',
+                        fontWeight: 700, fontSize: '0.88rem', cursor: 'pointer',
+                        color: tab === t.key ? 'var(--primary)' : (t.alert && tab !== t.key ? '#dc2626' : 'var(--text-muted)'),
+                        borderBottom: tab === t.key ? '2.5px solid var(--primary)' : '2.5px solid transparent',
+                        marginBottom: '-2px',
+                    }}>
+                        {t.label}
+                    </button>
+                ))}
             </div>
 
-            {/* Loans with Inline Actions */}
-            {filtered.length === 0 ? (
-                <div className="card">
-                    <div className="empty-state">
-                        <div className="empty-icon">✅</div>
-                        <h4>Queue is Clear!</h4>
-                        <p>All loans in your queue have been processed.</p>
-                    </div>
-                </div>
-            ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                    {filtered.map(loan => {
-                        const sc = STAGE_COLORS[loan.workflowStage] || {};
-                        const endpoint = getEndpoint(loan.workflowStage);
-                        const remarkVal = remarks[loan._id] || '';
-                        const isActing = actionLoading !== null && actionLoading.startsWith(loan._id);
-
-                        return (
-                            <div key={loan._id} className="card" style={{
-                                padding: '1.25rem',
-                                border: loan.amount >= 10000000 ? '2px solid #f59e0b' : '1px solid var(--border)',
-                            }}>
-                                {/* Top Row: Loan Info */}
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1rem', flexWrap: 'wrap', gap: '0.5rem' }}>
-                                    <div>
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.3rem' }}>
-                                            <span style={{ fontFamily: 'monospace', fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-muted)' }}>
-                                                {loan.applicationNumber}
-                                            </span>
-                                            {loan.amount >= 10000000 && (
-                                                <span style={{ fontSize: '0.65rem', background: '#fef3c7', color: '#92400e', padding: '2px 6px', borderRadius: 4, fontWeight: 700 }}>⚡ HIGH VALUE</span>
-                                            )}
-                                            <span style={{
-                                                padding: '2px 10px', borderRadius: 12, fontSize: '0.73rem', fontWeight: 700,
-                                                background: sc.bg, color: sc.color, border: `1px solid ${sc.border}`,
-                                            }}>
-                                                {STAGE_LABELS[loan.workflowStage]}
-                                            </span>
-                                        </div>
-                                        <div style={{ fontSize: '1rem', fontWeight: 700 }}>
-                                            {{ Education: '🎓', Home: '🏠', Personal: '💳', Business: '🏭', Vehicle: '🚗', Gold: '🥇' }[loan.loanType]} {loan.loanType} Loan · {fmt(loan.amount)}
-                                        </div>
-                                        <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '2px' }}>
-                                            Applied: {new Date(loan.submittedAt || loan.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
-                                            {loan.bankName && <> · Bank: <strong>{loan.bankName}</strong></>}
-                                        </div>
-                                    </div>
-                                    <Link to={`/loans/${loan._id}`}>
-                                        <button className="btn btn-outline btn-sm">View Full Details →</button>
-                                    </Link>
-                                </div>
-
-                                {/* Applicant Info Row */}
-                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '0.75rem', marginBottom: '1rem', background: '#f9fafb', borderRadius: 8, padding: '0.85rem' }}>
-                                    <div>
-                                        <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', marginBottom: '2px' }}>Applicant</div>
-                                        <div style={{ fontWeight: 700, fontSize: '0.88rem' }}>{loan.user?.fullName || 'N/A'}</div>
-                                        <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{loan.user?.phone}</div>
-                                    </div>
-                                    <div>
-                                        <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', marginBottom: '2px' }}>CIBIL Score</div>
-                                        <div style={{ fontWeight: 800, fontSize: '0.95rem', color: getCibilColor(loan.user?.cibilScore) }}>
-                                            {loan.user?.cibilScore || '—'}
-                                        </div>
-                                    </div>
-                                    <div>
-                                        <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', marginBottom: '2px' }}>Monthly Income</div>
-                                        <div style={{ fontWeight: 700, fontSize: '0.88rem' }}>{loan.user?.monthlyIncome ? fmt(loan.user.monthlyIncome) : '—'}</div>
-                                    </div>
-                                    <div>
-                                        <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', marginBottom: '2px' }}>EMI / Income</div>
-                                        <div style={{ fontWeight: 700, fontSize: '0.88rem' }}>
-                                            {loan.emiAmount && loan.user?.monthlyIncome
-                                                ? `${Math.round((loan.emiAmount / loan.user.monthlyIncome) * 100)}%`
-                                                : '—'}
-                                        </div>
-                                    </div>
-                                    <div>
-                                        <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', marginBottom: '2px' }}>Employment</div>
-                                        <div style={{ fontWeight: 600, fontSize: '0.82rem' }}>{loan.user?.employmentType || '—'}</div>
-                                    </div>
-                                    <div>
-                                        <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', marginBottom: '2px' }}>Collateral</div>
-                                        <div>
-                                            {loan.collateralRequired
-                                                ? <span style={{ fontWeight: 700, color: '#ca8a04' }}>⚠️ Required</span>
-                                                : <span style={{ fontWeight: 700, color: '#16a34a' }}>✅ Not Required</span>}
-                                        </div>
-                                    </div>
-                                </div>
-
-                                {/* Action Panel — only for actionable stages */}
-                                {endpoint && (
-                                    <div style={{ borderTop: '1px solid var(--border)', paddingTop: '1rem' }}>
-                                        <div style={{ marginBottom: '0.75rem' }}>
-                                            <input
-                                                placeholder="Remarks (required for Return / Reject)..."
-                                                value={remarkVal}
-                                                onChange={e => setRemarks(r => ({ ...r, [loan._id]: e.target.value }))}
-                                                style={{ width: '100%', fontSize: '0.85rem' }}
-                                            />
-                                        </div>
-                                        <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
-                                            <button
-                                                className="btn btn-success"
-                                                disabled={isActing}
-                                                onClick={() => doAction(loan._id, loan.workflowStage, 'approved')}
-                                            >
-                                                {actionLoading === loan._id + 'approved' ? '⏳ Processing...' : getApproveLabel(loan)}
-                                            </button>
-                                            <button
-                                                className="btn btn-warning"
-                                                disabled={isActing}
-                                                onClick={() => doAction(loan._id, loan.workflowStage, 'returned')}
-                                            >
-                                                {actionLoading === loan._id + 'returned' ? '⏳...' : '↩️ Return for Correction'}
-                                            </button>
-                                            <button
-                                                className="btn btn-danger"
-                                                disabled={isActing}
-                                                onClick={() => doAction(loan._id, loan.workflowStage, 'rejected')}
-                                            >
-                                                {actionLoading === loan._id + 'rejected' ? '⏳...' : '❌ Reject'}
-                                            </button>
-                                            {loan.user?._id && (
-                                                <Link to={`/chat/${loan.user._id}`}>
-                                                    <button className="btn btn-outline">💬 Message Applicant</button>
-                                                </Link>
-                                            )}
-                                        </div>
-                                    </div>
-                                )}
-
-                                {/* Disburse for sanctioned loans */}
-                                {loan.workflowStage === 'sanctioned' && (
-                                    <div style={{ borderTop: '1px solid var(--border)', paddingTop: '1rem' }}>
-                                        <div className="alert alert-success" style={{ marginBottom: '0.75rem' }}>
-                                            <span>✅</span>
-                                            <div className="alert-body"><p>This loan has been <strong>sanctioned</strong>. You can now disburse the amount to the applicant's account.</p></div>
-                                        </div>
-                                        <button
-                                            className="btn btn-primary"
-                                            disabled={actionLoading === loan._id + 'disburse'}
-                                            onClick={() => doDisburse(loan._id)}
-                                        >
-                                            {actionLoading === loan._id + 'disburse' ? '⏳ Processing...' : '🏦 Mark as Disbursed & Generate EMI Schedule'}
-                                        </button>
-                                    </div>
-                                )}
+            {/* ── Queue Tab ── */}
+            {tab === 'queue' && (
+                <div>
+                    {queueCount === 0 ? (
+                        <div className="card">
+                            <div className="empty-state">
+                                <div className="empty-icon">🎉</div>
+                                <h4>All Clear!</h4>
+                                <p>No loans awaiting review. Auto-refreshes every 15 seconds.</p>
                             </div>
-                        );
-                    })}
+                        </div>
+                    ) : (
+                        <>
+                            {sanctionedLoans.length > 0 && (
+                                <div style={{ marginBottom: '1.5rem' }}>
+                                    <h4 style={{ marginBottom: '0.75rem', color: '#15803d' }}>✅ Sanctioned — Pending Disbursement ({sanctionedLoans.length})</h4>
+                                    {sanctionedLoans.map(loan => <LoanCard key={loan._id} loan={loan} />)}
+                                </div>
+                            )}
+                            {queue.length > 0 && (
+                                <div>
+                                    <h4 style={{ marginBottom: '0.75rem' }}>⏳ Pending Review ({queue.length})</h4>
+                                    {queue.map(loan => <LoanCard key={loan._id} loan={loan} />)}
+                                </div>
+                            )}
+                        </>
+                    )}
                 </div>
             )}
 
-            {/* Workflow Reference */}
-            <div className="card" style={{ marginTop: '1.5rem', background: '#f8fafc' }}>
-                <h4 style={{ marginBottom: '1rem' }}>📌 Approval Workflow Reference</h4>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '0.75rem', fontSize: '0.82rem' }}>
-                    {[
-                        { role: '🔍 Loan Officer', duty: 'Verify KYC, income & credit score. Approve to forward to Branch Manager, or return/reject.' },
-                        { role: '🏦 Branch Manager', duty: 'Evaluate collateral & sanction loans up to ₹1 Crore. Forward high-value loans to GM.' },
-                        { role: '👔 General Manager', duty: 'Final approval for loans above ₹1 Crore. Risk assessment and final sanction.' },
-                        { role: '💸 Disbursement', duty: "After sanction, loan is disbursed to the applicant's bank account and EMI schedule is generated." },
-                    ].map(({ role, duty }) => (
-                        <div key={role} style={{ background: 'white', borderRadius: 'var(--radius)', padding: '0.85rem', border: '1px solid var(--border)' }}>
-                            <div style={{ fontWeight: 700, color: 'var(--primary)', marginBottom: '0.4rem' }}>{role}</div>
-                            <p style={{ fontSize: '0.78rem', lineHeight: 1.5 }}>{duty}</p>
+            {/* ── All Loans Tab ── */}
+            {tab === 'all' && (
+                <>
+                    <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.75rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                        <span style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-muted)' }}>Stage:</span>
+                        {['all', ...Object.keys(STAGE_LABELS)].map(s => (
+                            <button key={s} onClick={() => setStageFilter(s)} className={`btn btn-sm ${stageFilter === s ? 'btn-primary' : 'btn-outline'}`}>
+                                {s === 'all' ? 'All' : STAGE_LABELS[s]}
+                            </button>
+                        ))}
+                    </div>
+                    <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                        <span style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-muted)' }}>Type:</span>
+                        {['all', 'Education', 'Home', 'Personal', 'Business', 'Vehicle', 'Gold'].map(t => (
+                            <button key={t} onClick={() => setTypeFilter(t)} className={`btn btn-sm ${typeFilter === t ? 'btn-primary' : 'btn-outline'}`}>
+                                {t}
+                            </button>
+                        ))}
+                    </div>
+                    <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+                        <div className="table-wrapper">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>App. No.</th><th>Applicant</th><th>Bank</th><th>Type</th>
+                                        <th>Amount</th><th>CIBIL</th><th>Stage</th><th>Date</th><th>Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {filtered.length === 0 ? (
+                                        <tr><td colSpan={9}>
+                                            <div className="empty-state"><div className="empty-icon">📂</div><h4>No Loans Found</h4><p>Try changing your filters.</p></div>
+                                        </td></tr>
+                                    ) : filtered.map(loan => <LoanRow key={loan._id} loan={loan} />)}
+                                </tbody>
+                            </table>
                         </div>
-                    ))}
+                    </div>
+                </>
+            )}
+
+            {/* ── Applicants Tab ── */}
+            {tab === 'applicants' && (
+                <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+                    {users.length === 0 ? (
+                        <div className="empty-state" style={{ padding: '2rem' }}>
+                            <div className="empty-icon">👥</div>
+                            <h4>No Applicants Yet</h4>
+                            <p style={{ fontSize: '0.82rem' }}>Applicant list requires the <code>/auth/users</code> endpoint in auth.js — see fix below.</p>
+                        </div>
+                    ) : (
+                        <div className="table-wrapper">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>Name</th><th>Username</th><th>Email / Phone</th>
+                                        <th>Employment</th><th>Monthly Income</th><th>CIBIL</th>
+                                        <th>Registered</th><th>Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {users.map(u => {
+                                        const cibil = getCibilColor(u.cibilScore);
+                                        return (
+                                            <tr key={u._id}>
+                                                <td><div className="td-main">{u.fullName}</div></td>
+                                                <td style={{ fontFamily: 'monospace', fontSize: '0.82rem', color: 'var(--text-muted)' }}>@{u.username}</td>
+                                                <td>
+                                                    <div className="td-main" style={{ fontSize: '0.82rem' }}>{u.email}</div>
+                                                    <div className="td-sub">{u.phone}</div>
+                                                </td>
+                                                <td style={{ fontSize: '0.82rem' }}>{u.employmentType || '—'}</td>
+                                                <td style={{ fontWeight: 700 }}>{u.monthlyIncome ? fmt(u.monthlyIncome) + '/mo' : '—'}</td>
+                                                <td>
+                                                    <span style={{ fontWeight: 700, fontSize: '0.78rem', color: cibil.color, background: cibil.bg, padding: '2px 8px', borderRadius: 10 }}>
+                                                        {cibil.label}
+                                                    </span>
+                                                </td>
+                                                <td style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                                                    {new Date(u.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
+                                                </td>
+                                                <td>
+                                                    <Link to={`/chat/${u._id}`}>
+                                                        <button className="btn btn-primary btn-sm">💬 Message</button>
+                                                    </Link>
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
+                                </tbody>
+                            </table>
+                        </div>
+                    )}
                 </div>
-            </div>
+            )}
         </div>
     );
 };
+
+const InfoCell = ({ label, value, sub, children }) => (
+    <div>
+        <div style={{ fontSize: '0.62rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', marginBottom: '2px', letterSpacing: '0.5px' }}>{label}</div>
+        {children || (
+            <>
+                <div style={{ fontWeight: 600, fontSize: '0.85rem' }}>{value || '—'}</div>
+                {sub && <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>{sub}</div>}
+            </>
+        )}
+    </div>
+);
 
 export default OfficerPanel;

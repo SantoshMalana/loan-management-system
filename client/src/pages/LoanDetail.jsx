@@ -11,7 +11,7 @@ const STAGE_WORKFLOW = [
     { key: 'disbursed', label: 'Disbursed', desc: 'Amount credited to account', icon: '🎉', days: '' },
 ];
 
-const STAFF_ROLES = ['branch_manager', 'admin'];
+const STAFF_ROLES = ['branch_manager'];
 
 const getCibilColor = (score) => {
     if (!score) return 'var(--text-muted)';
@@ -716,7 +716,7 @@ const LoanDetail = () => {
                     )}
 
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.75rem' }}>
-                        {/* BM / Admin Review Actions */}
+                        {/* BM Review Actions */}
                         {canDoBMReview && (
                             <>
                                 <button className="btn btn-success" disabled={actionLoading} onClick={() => doAction('bm-review', 'approved')}>

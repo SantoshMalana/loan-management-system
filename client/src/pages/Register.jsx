@@ -19,6 +19,7 @@ const Register = () => {
         'address.street': '', 'address.city': '', 'address.state': '', 'address.pincode': '',
         employmentType: '', employerName: '', monthlyIncome: '',
         bankName: '', bankAccountNumber: '', ifscCode: '',
+        role: 'applicant', staffSecretCode: '', systemPasscode: '', officerBank: ''
     });
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
@@ -78,9 +79,13 @@ const Register = () => {
                 bankName: form.bankName || undefined,
                 bankAccountNumber: form.bankAccountNumber || undefined,
                 ifscCode: form.ifscCode || undefined,
+                role: form.role,
+                staffSecretCode: form.role === 'branch_manager' ? form.staffSecretCode : undefined,
+                systemPasscode: form.role === 'branch_manager' ? form.systemPasscode : undefined,
+                officerBank: form.role === 'branch_manager' ? form.officerBank : undefined,
             };
             await register(payload);
-            navigate('/login', { state: { msg: 'Account created! Please login.' } });
+            navigate(form.role === 'branch_manager' ? '/bm-login' : '/login', { state: { msg: 'Account created! Please login.' } });
         } catch (err) {
             setError(err?.response?.data?.message || 'Registration failed. Please try again.');
         } finally {
@@ -96,7 +101,7 @@ const Register = () => {
                 <div className="auth-left-content">
                     <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>📄</div>
                     <h2>Open Your Account</h2>
-                    <p>Complete your profile once and apply for any loan type instantly. Your information is secured with bank-grade encryption.</p>
+                    <p>Register as an Applicant to apply for loans instantly, or as a Bank Manager to manage branch applications.</p>
                     <ul className="auth-features">
                         <li>Education Loans up to ₹75 Lakhs</li>
                         <li>Home Loans starting at 8.75%</li>
@@ -107,6 +112,20 @@ const Register = () => {
             </div>
             <div className="auth-right" style={{ width: '520px', padding: '2rem 2.5rem', overflowY: 'auto' }}>
                 <h2 className="auth-title">Create Account</h2>
+
+                <div style={{ display: 'flex', gap: '1rem', marginBottom: '1.5rem', background: 'var(--bg-light)', padding: '0.4rem', borderRadius: 12 }}>
+                    <button type="button"
+                        onClick={() => update('role', 'applicant')}
+                        style={{ flex: 1, padding: '0.6rem', border: 'none', borderRadius: 8, fontWeight: 700, cursor: 'pointer', background: form.role === 'applicant' ? 'var(--primary)' : 'transparent', color: form.role === 'applicant' ? 'white' : 'var(--text-muted)' }}>
+                        👤 Applicant
+                    </button>
+                    <button type="button"
+                        onClick={() => update('role', 'branch_manager')}
+                        style={{ flex: 1, padding: '0.6rem', border: 'none', borderRadius: 8, fontWeight: 700, cursor: 'pointer', background: form.role === 'branch_manager' ? '#8b5cf6' : 'transparent', color: form.role === 'branch_manager' ? 'white' : 'var(--text-muted)' }}>
+                        🏦 Bank Manager
+                    </button>
+                </div>
+
                 <p className="auth-sub">Step {step} of {steps.length} — {steps[step - 1]}</p>
 
                 {/* Step Indicator */}
@@ -128,9 +147,17 @@ const Register = () => {
                 )}
 
                 <form onSubmit={step === 4 ? handleSubmit : e => { e.preventDefault(); nextStep(); }}>
-                    {/* Step 1: Basic Info */}
                     {step === 1 && (
                         <>
+                            {form.role === 'branch_manager' && (
+                                <div className="alert alert-warning" style={{ background: '#fef3c7', color: '#b45309', border: '1px solid #fde68a' }}>
+                                    <span className="alert-icon">🔒</span>
+                                    <div className="alert-body">
+                                        <strong>Bank Staff Registration</strong>
+                                        <p style={{ marginTop: 4 }}>You need a System Authorization Passcode to create a manager account.</p>
+                                    </div>
+                                </div>
+                            )}
                             <div className="form-group">
                                 <label>Full Name (as per Aadhaar)<span className="required">*</span></label>
                                 <input type="text" placeholder="Rajan Kumar Sharma" value={form.fullName} onChange={e => update('fullName', e.target.value)} required />
@@ -218,8 +245,8 @@ const Register = () => {
                         </>
                     )}
 
-                    {/* Step 3: Employment */}
-                    {step === 3 && (
+                    {/* Step 3: Employment / Staff Config */}
+                    {step === 3 && form.role === 'applicant' && (
                         <>
                             <div className="form-group">
                                 <label>Employment Type</label>
@@ -254,6 +281,30 @@ const Register = () => {
                                     </div>
                                 </div>
                             )}
+                        </>
+                    )}
+
+                    {step === 3 && form.role === 'branch_manager' && (
+                        <>
+                            <div className="form-group">
+                                <label>Your Bank<span className="required">*</span></label>
+                                <select value={form.officerBank} onChange={e => update('officerBank', e.target.value)} required>
+                                    <option value="">Select Bank</option>
+                                    {['SBI', 'HDFC', 'ICICI', 'Axis Bank', 'PNB', 'Kotak Mahindra'].map(b => (
+                                        <option key={b} value={b}>{b}</option>
+                                    ))}
+                                </select>
+                            </div>
+                            <div className="form-group">
+                                <label>Staff Authorization Code (System Admin)<span className="required">*</span></label>
+                                <input type="password" placeholder="Enter system authorization code" value={form.systemPasscode} onChange={e => update('systemPasscode', e.target.value)} required />
+                                <span className="form-hint">Required to prove you have permission to create a manager account.</span>
+                            </div>
+                            <div className="form-group">
+                                <label>Create Your Personal Secret Code<span className="required">*</span></label>
+                                <input type="text" placeholder="e.g. ALPHA123" maxLength={8} value={form.staffSecretCode} onChange={e => update('staffSecretCode', e.target.value.toUpperCase())} required />
+                                <span className="form-hint">You will use this code alongside your OTP during login. Max 8 characters.</span>
+                            </div>
                         </>
                     )}
 

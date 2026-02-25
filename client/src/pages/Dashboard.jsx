@@ -30,17 +30,17 @@ const STAGE_COLORS = {
 };
 
 const STAGE_MESSAGES = {
-    submitted: 'Your application has been submitted and is awaiting review by your Bank Manager.',
-    under_review: 'Your application is under review.',
+    submitted: 'Your application has been submitted and is awaiting review by the Bank Manager.',
+    under_review: 'Your application is currently under review.',
     branch_review: 'Your application is being reviewed by the Bank Manager.',
-    gm_review: 'Your high-value loan is under review by senior management.',
-    returned: 'Your application was returned for corrections. Please review feedback and resubmit.',
-    sanctioned: 'Great news! Your loan has been sanctioned. Disbursement will be processed shortly.',
-    disbursed: 'Your loan amount has been credited to your account. Check your EMI schedule below.',
+    gm_review: 'Your high-value loan application is under senior management review.',
+    returned: 'Your application was returned for corrections. Please check the feedback and resubmit.',
+    sanctioned: '🎉 Great news! Your loan has been sanctioned. Disbursement will be processed shortly.',
+    disbursed: '✅ Your loan has been credited to your account. Check your EMI schedule below.',
     rejected: 'Your application was not approved. Check the loan details for the rejection reason.',
 };
 
-const STAFF_ROLES = ['branch_manager', 'admin'];
+const STAFF_ROLES = ['branch_manager'];
 
 const Dashboard = () => {
     const [loans, setLoans] = useState([]);
@@ -49,6 +49,14 @@ const Dashboard = () => {
     const [filter, setFilter] = useState('all');
     const { user } = useContext(AuthContext);
     const navigate = useNavigate();
+
+    // Staff should not be on this page — redirect handled by ApplicantRoute in App.jsx
+    // But as a fallback:
+    useEffect(() => {
+        if (user && STAFF_ROLES.includes(user.role)) {
+            navigate('/officer', { replace: true });
+        }
+    }, [user, navigate]);
 
     const fetchData = async () => {
         try {
@@ -59,7 +67,7 @@ const Dashboard = () => {
             setLoans(loansRes.data);
             setStats(statsRes.data);
         } catch (err) {
-            console.error(err);
+            console.error('Dashboard fetch error:', err);
         } finally {
             setLoading(false);
         }
@@ -67,44 +75,33 @@ const Dashboard = () => {
 
     useEffect(() => { fetchData(); }, []);
 
-    const isOfficer = STAFF_ROLES.includes(user?.role);
-
-    const filtered = filter === 'all' ? loans : loans.filter(l => l.workflowStage === filter || l.status === filter);
-
-    // Most recent active loan for applicants
-    const activeLoan = !isOfficer ? loans.find(l => !['rejected', 'disbursed', 'closed'].includes(l.workflowStage)) : null;
-    const latestLoan = !isOfficer && loans.length > 0 ? loans[0] : null;
-
     if (loading) return <div className="spinner" />;
+
+    const filtered = filter === 'all'
+        ? loans
+        : loans.filter(l => l.workflowStage === filter || l.status === filter);
+
+    // Most recent active (non-terminal) loan
+    const activeLoan = loans.find(l => !['rejected', 'disbursed', 'closed'].includes(l.workflowStage));
+    const latestLoan = loans.length > 0 ? loans[0] : null;
 
     return (
         <div className="anim-fade">
             {/* Header */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '0.75rem' }}>
                 <div>
-                    <h2>Welcome, {user?.fullName?.split(' ')[0] || user?.username} 👋</h2>
+                    <h2>Welcome back, {user?.fullName?.split(' ')[0] || user?.username} 👋</h2>
                     <p style={{ fontSize: '0.88rem', marginTop: '0.2rem', color: 'var(--text-muted)' }}>
-                        {isOfficer
-                            ? `${user?.officerBank ? `[${user.officerBank}]` : ''} Manage and review loan applications for your bank.`
-                            : 'Track your loan applications and payments below.'}
+                        Track your loan applications and EMI payments below.
                     </p>
                 </div>
-                <div style={{ display: 'flex', gap: '0.75rem' }}>
-                    {!isOfficer && (
-                        <Link to="/apply">
-                            <button className="btn btn-primary">+ Apply for Loan</button>
-                        </Link>
-                    )}
-                    {isOfficer && (
-                        <Link to="/admin">
-                            <button className="btn btn-primary">🏛️ Admin Panel</button>
-                        </Link>
-                    )}
-                </div>
+                <Link to="/apply">
+                    <button className="btn btn-primary">+ Apply for Loan</button>
+                </Link>
             </div>
 
-            {/* ── APPLICANT: Active Loan Status Banner ── */}
-            {!isOfficer && activeLoan && (
+            {/* Active loan status banner */}
+            {activeLoan && (
                 <div style={{
                     marginBottom: '1.5rem', borderRadius: 'var(--radius)', padding: '1.25rem 1.5rem',
                     background: STAGE_COLORS[activeLoan.workflowStage]?.bg || '#f9fafb',
@@ -112,8 +109,8 @@ const Dashboard = () => {
                 }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '0.75rem' }}>
                         <div>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.5rem' }}>
-                                <span style={{ fontWeight: 800, fontSize: '0.95rem' }}>Your Active Application</span>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.5rem', flexWrap: 'wrap' }}>
+                                <span style={{ fontWeight: 800, fontSize: '0.95rem' }}>Active Application</span>
                                 <span style={{
                                     padding: '3px 10px', borderRadius: 12, fontSize: '0.75rem', fontWeight: 700,
                                     background: STAGE_COLORS[activeLoan.workflowStage]?.color + '18',
@@ -123,11 +120,11 @@ const Dashboard = () => {
                                     {STAGE_LABELS[activeLoan.workflowStage]}
                                 </span>
                             </div>
-                            <div style={{ fontSize: '0.88rem', color: STAGE_COLORS[activeLoan.workflowStage]?.color, fontWeight: 500, maxWidth: 500 }}>
+                            <div style={{ fontSize: '0.88rem', color: STAGE_COLORS[activeLoan.workflowStage]?.color, fontWeight: 500, maxWidth: 520 }}>
                                 {STAGE_MESSAGES[activeLoan.workflowStage]}
                             </div>
-                            <div style={{ marginTop: '0.5rem', fontSize: '0.82rem', color: 'var(--text-muted)' }}>
-                                {activeLoan.loanType} Loan · {fmt(activeLoan.amount)} · {activeLoan.bankName} · {activeLoan.applicationNumber}
+                            <div style={{ marginTop: '0.5rem', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                                {activeLoan.loanType} Loan · {fmt(activeLoan.amount)} · {activeLoan.bankName} · <span style={{ fontFamily: 'monospace' }}>{activeLoan.applicationNumber}</span>
                             </div>
                         </div>
                         <Link to={`/loans/${activeLoan._id}`}>
@@ -137,32 +134,31 @@ const Dashboard = () => {
                 </div>
             )}
 
-            {/* ── APPLICANT: Congratulations Banner ── */}
-            {!isOfficer && latestLoan && ['sanctioned', 'disbursed'].includes(latestLoan.workflowStage) && !activeLoan && (
-                <div style={{ marginBottom: '1.5rem', background: 'linear-gradient(135deg, #16a34a, #15803d)', color: 'white', borderRadius: 'var(--radius)', padding: '1.25rem 1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            {/* Congratulations banner — disbursed/sanctioned but no active loan */}
+            {latestLoan && ['sanctioned', 'disbursed'].includes(latestLoan.workflowStage) && !activeLoan && (
+                <div style={{
+                    marginBottom: '1.5rem',
+                    background: latestLoan.workflowStage === 'disbursed'
+                        ? 'linear-gradient(135deg, #0e7490, #0891b2)'
+                        : 'linear-gradient(135deg, #16a34a, #15803d)',
+                    color: 'white', borderRadius: 'var(--radius)', padding: '1.25rem 1.5rem',
+                    display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem'
+                }}>
                     <div>
                         <div style={{ fontWeight: 800, fontSize: '1.05rem', marginBottom: '0.25rem' }}>
-                            🎉 Your {latestLoan.loanType} Loan has been {latestLoan.workflowStage}!
+                            🎉 Your {latestLoan.loanType} Loan is {latestLoan.workflowStage === 'disbursed' ? 'Disbursed!' : 'Sanctioned!'}
                         </div>
                         <div style={{ opacity: 0.9, fontSize: '0.88rem' }}>
-                            {fmt(latestLoan.amount)} from {latestLoan.bankName} — {latestLoan.workflowStage === 'disbursed' ? 'Amount credited. EMI starts next month.' : 'Awaiting disbursement.'}
+                            {fmt(latestLoan.amount)} from {latestLoan.bankName} —{' '}
+                            {latestLoan.workflowStage === 'disbursed'
+                                ? `Amount credited. EMI: ${latestLoan.emiAmount ? fmt(latestLoan.emiAmount) + '/month' : 'check schedule'}.`
+                                : 'Awaiting disbursement.'}
                         </div>
                     </div>
                     <Link to={`/loans/${latestLoan._id}`}>
-                        <button className="btn" style={{ background: 'white', color: '#15803d', fontWeight: 700 }}>View Details →</button>
-                    </Link>
-                </div>
-            )}
-
-            {/* ── OFFICER: Awaiting Action Banner ── */}
-            {isOfficer && stats.awaitingAction > 0 && (
-                <div style={{ marginBottom: '1.5rem', background: '#fffbeb', border: '1.5px solid #fbbf24', borderRadius: 'var(--radius)', padding: '1rem 1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div>
-                        <span style={{ fontWeight: 700, color: '#92400e' }}>⏳ {stats.awaitingAction} loan{stats.awaitingAction > 1 ? 's' : ''} awaiting your review</span>
-                        <span style={{ marginLeft: '0.75rem', fontSize: '0.85rem', color: '#78350f' }}>Click "Admin Panel" to review and take action.</span>
-                    </div>
-                    <Link to="/admin">
-                        <button className="btn btn-sm" style={{ background: '#f59e0b', color: 'white', borderColor: '#f59e0b', fontWeight: 700 }}>Review Now →</button>
+                        <button className="btn" style={{ background: 'white', color: latestLoan.workflowStage === 'disbursed' ? '#0e7490' : '#15803d', fontWeight: 700 }}>
+                            View Details →
+                        </button>
                     </Link>
                 </div>
             )}
@@ -176,15 +172,15 @@ const Dashboard = () => {
                     <div className="stat-icon">📋</div>
                 </div>
                 <div className="stat-card amber">
-                    <div className="stat-label">{isOfficer ? 'Pending Review' : 'In Progress'}</div>
+                    <div className="stat-label">In Progress</div>
                     <div className="stat-value">{stats.pending || 0}</div>
-                    <div className="stat-sub">Awaiting action</div>
+                    <div className="stat-sub">Awaiting review</div>
                     <div className="stat-icon">⏳</div>
                 </div>
                 <div className="stat-card green">
                     <div className="stat-label">Sanctioned</div>
                     <div className="stat-value">{stats.approved || 0}</div>
-                    <div className="stat-sub">{isOfficer ? 'Ready to disburse' : 'Approved'}</div>
+                    <div className="stat-sub">Approved</div>
                     <div className="stat-icon">✅</div>
                 </div>
                 <div className="stat-card red">
@@ -203,14 +199,15 @@ const Dashboard = () => {
 
             {/* Loans Table */}
             <div className="card anim-up-2" style={{ padding: 0, overflow: 'hidden', marginTop: '1.5rem' }}>
-                <div className="card-header" style={{ padding: '1.25rem 1.5rem', borderBottom: '1px solid var(--border)' }}>
+                <div className="card-header" style={{ padding: '1.25rem 1.5rem', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '0.75rem' }}>
                     <div>
-                        <div className="card-title">Loan Applications</div>
-                        <div className="card-subtitle">{loans.length} total record{loans.length !== 1 ? 's' : ''}</div>
+                        <div className="card-title">My Loan Applications</div>
+                        <div className="card-subtitle">{loans.length} total application{loans.length !== 1 ? 's' : ''}</div>
                     </div>
-                    <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-                        {['all', 'submitted', 'under_review', 'branch_review', 'sanctioned', 'disbursed', 'rejected', 'returned'].map(f => (
-                            <button key={f} onClick={() => setFilter(f)} className={`btn btn-sm ${filter === f ? 'btn-primary' : 'btn-outline'}`}>
+                    <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
+                        {['all', 'submitted', 'under_review', 'sanctioned', 'disbursed', 'returned', 'rejected'].map(f => (
+                            <button key={f} onClick={() => setFilter(f)}
+                                className={`btn btn-sm ${filter === f ? 'btn-primary' : 'btn-outline'}`}>
                                 {f === 'all' ? 'All' : STAGE_LABELS[f]?.replace(' ✅', '').replace(' 🎉', '') || f}
                             </button>
                         ))}
@@ -222,11 +219,10 @@ const Dashboard = () => {
                         <thead>
                             <tr>
                                 <th>Application No.</th>
-                                {isOfficer && <th>Applicant</th>}
-                                <th>Type</th>
+                                <th>Loan Type</th>
                                 <th>Bank</th>
                                 <th>Amount</th>
-                                <th>EMI</th>
+                                <th>EMI / Month</th>
                                 <th>Status</th>
                                 <th>Applied On</th>
                                 <th>Action</th>
@@ -235,14 +231,14 @@ const Dashboard = () => {
                         <tbody>
                             {filtered.length === 0 ? (
                                 <tr>
-                                    <td colSpan={isOfficer ? 9 : 8}>
+                                    <td colSpan={8}>
                                         <div className="empty-state">
                                             <div className="empty-icon">📂</div>
                                             <h4>No Applications Found</h4>
                                             <p>
-                                                {!isOfficer ? (
-                                                    <>No loans yet. <Link to="/apply" style={{ color: 'var(--primary)', fontWeight: 600 }}>Apply now →</Link></>
-                                                ) : 'No applications match the current filter.'}
+                                                {filter === 'all'
+                                                    ? <><Link to="/apply" style={{ color: 'var(--primary)', fontWeight: 600 }}>Apply for your first loan →</Link></>
+                                                    : 'No loans match this filter.'}
                                             </p>
                                         </div>
                                     </td>
@@ -252,16 +248,10 @@ const Dashboard = () => {
                                 return (
                                     <tr key={loan._id}>
                                         <td>
-                                            <div className="td-main" style={{ fontFamily: 'monospace', fontSize: '0.82rem' }}>
+                                            <span style={{ fontFamily: 'monospace', fontSize: '0.8rem', fontWeight: 700 }}>
                                                 {loan.applicationNumber || loan._id.slice(-8).toUpperCase()}
-                                            </div>
+                                            </span>
                                         </td>
-                                        {isOfficer && (
-                                            <td>
-                                                <div className="td-main">{loan.user?.fullName || 'N/A'}</div>
-                                                <div className="td-sub">{loan.user?.phone}</div>
-                                            </td>
-                                        )}
                                         <td>
                                             <span className={`loan-type-pill lt-${loan.loanType}`}>
                                                 {{ Education: '🎓', Home: '🏠', Personal: '💳', Business: '🏭', Vehicle: '🚗', Gold: '🥇' }[loan.loanType]} {loan.loanType}
@@ -273,7 +263,9 @@ const Dashboard = () => {
                                             </span>
                                         </td>
                                         <td><span style={{ fontWeight: 700 }}>{fmt(loan.amount)}</span></td>
-                                        <td style={{ color: 'var(--text-muted)', fontSize: '0.88rem' }}>{loan.emiAmount ? fmt(loan.emiAmount) + '/mo' : '—'}</td>
+                                        <td style={{ color: 'var(--text-muted)', fontSize: '0.88rem' }}>
+                                            {loan.emiAmount ? fmt(loan.emiAmount) : '—'}
+                                        </td>
                                         <td>
                                             <span style={{
                                                 padding: '3px 10px', borderRadius: 12, fontSize: '0.75rem', fontWeight: 700,
@@ -289,9 +281,7 @@ const Dashboard = () => {
                                         </td>
                                         <td>
                                             <Link to={`/loans/${loan._id}`}>
-                                                <button className="btn btn-outline btn-sm">
-                                                    {isOfficer ? 'Review' : 'View'}
-                                                </button>
+                                                <button className="btn btn-outline btn-sm">View</button>
                                             </Link>
                                         </td>
                                     </tr>
@@ -302,13 +292,13 @@ const Dashboard = () => {
                 </div>
             </div>
 
-            {/* Quick info for applicants */}
-            {!isOfficer && loans.length === 0 && (
-                <div style={{ marginTop: '2rem', textAlign: 'center' }}>
-                    <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>🏦</div>
+            {/* Empty state CTA */}
+            {loans.length === 0 && (
+                <div style={{ marginTop: '3rem', textAlign: 'center' }}>
+                    <div style={{ fontSize: '3.5rem', marginBottom: '1rem' }}>🏦</div>
                     <h3>Ready to Apply for a Loan?</h3>
-                    <p style={{ color: 'var(--text-muted)', marginBottom: '1.5rem', maxWidth: 400, margin: '0.5rem auto 1.5rem' }}>
-                        Apply for Education, Home, Personal, Business, Vehicle, or Gold loans from top Indian banks.
+                    <p style={{ color: 'var(--text-muted)', maxWidth: 420, margin: '0.5rem auto 1.5rem' }}>
+                        Apply for Education, Home, Personal, Business, Vehicle, or Gold loans from top Indian banks — SBI, HDFC, ICICI, Axis and more.
                     </p>
                     <Link to="/apply">
                         <button className="btn btn-primary btn-lg">Start Your Application →</button>

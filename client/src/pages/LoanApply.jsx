@@ -170,7 +170,7 @@ const LoanApply = () => {
             <p style={{ marginBottom: '1.5rem', fontSize: '0.88rem' }}>Application Reference will be generated upon submission.</p>
 
             {/* Officer guard — officers cannot apply for loans */}
-            {user && ['loan_officer', 'branch_manager', 'general_manager', 'admin'].includes(user.role) && (
+            {user && ['branch_manager'].includes(user.role) && (
                 <div style={{ background: '#fef3c7', border: '2px solid #f59e0b', borderRadius: 'var(--radius)', padding: '1.5rem', marginBottom: '1.5rem', textAlign: 'center' }}>
                     <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>🏛️</div>
                     <div style={{ fontWeight: 800, fontSize: '1rem', color: '#92400e', marginBottom: '0.5rem' }}>

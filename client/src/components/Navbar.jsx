@@ -13,10 +13,7 @@ const Navbar = () => {
 
     const roleLabel = {
         applicant: 'Applicant',
-        loan_officer: 'Loan Officer',
-        branch_manager: 'Branch Manager',
-        general_manager: 'General Manager',
-        admin: 'Admin'
+        branch_manager: 'Bank Manager'
     };
 
     const getInitials = (name = '') =>

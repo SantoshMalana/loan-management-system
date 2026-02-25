@@ -14,12 +14,14 @@ const LOAN_RATES = {
 const EMICalculator = () => {
     const [form, setForm] = useState({ loanType: 'Personal', principal: '', rate: '13.5', tenure: '', tenureType: 'months' });
     const [result, setResult] = useState(null);
+    const [error, setError] = useState('');
 
     const update = (k, v) => {
         const newForm = { ...form, [k]: v };
         if (k === 'loanType') newForm.rate = LOAN_RATES[v] || '';
         setForm(newForm);
         setResult(null);
+        setError('');
     };
 
     const calculate = (e) => {
@@ -27,6 +29,11 @@ const EMICalculator = () => {
         const P = Number(form.principal);
         const ratePA = Number(form.rate);
         const n = form.tenureType === 'years' ? Number(form.tenure) * 12 : Number(form.tenure);
+
+        if (P < 0 || ratePA < 0 || n < 0) {
+            setError('Negative values are not allowed.');
+            return;
+        }
 
         if (!P || !ratePA || !n) return;
 
@@ -61,6 +68,12 @@ const EMICalculator = () => {
                 <p>Calculate your Equated Monthly Instalment (EMI) before applying for a loan.</p>
             </div>
 
+            {error && (
+                <div style={{ background: '#fee2e2', color: '#dc2626', padding: '1rem', borderRadius: '8px', marginBottom: '1.5rem', textAlign: 'center', fontWeight: '500' }}>
+                    ⚠️ {error}
+                </div>
+            )}
+
             <div style={{ display: 'grid', gridTemplateColumns: result ? '1fr 1fr' : '1fr', gap: '1.5rem', alignItems: 'start' }}>
                 <div className="card">
                     <h4 style={{ marginBottom: '1.25rem' }}>Loan Parameters</h4>
@@ -73,12 +86,12 @@ const EMICalculator = () => {
                         </div>
                         <div className="form-group">
                             <label>Principal Amount (₹)<span className="required">*</span></label>
-                            <input type="number" placeholder="e.g. 500000" value={form.principal} onChange={e => update('principal', e.target.value)} required />
+                            <input type="number" min="0" placeholder="e.g. 500000" value={form.principal} onChange={e => update('principal', e.target.value)} required />
                         </div>
                         <div className="form-row">
                             <div className="form-group">
                                 <label>Annual Interest Rate (%)</label>
-                                <input type="number" step="0.01" placeholder="12.5" value={form.rate} onChange={e => update('rate', e.target.value)} required />
+                                <input type="number" min="0" step="0.01" placeholder="12.5" value={form.rate} onChange={e => update('rate', e.target.value)} required />
                             </div>
                             <div className="form-group">
                                 <label>Tenure Type</label>
@@ -90,7 +103,7 @@ const EMICalculator = () => {
                         </div>
                         <div className="form-group">
                             <label>Loan Tenure ({form.tenureType})<span className="required">*</span></label>
-                            <input type="number" placeholder={form.tenureType === 'years' ? 'e.g. 5' : 'e.g. 60'} value={form.tenure} onChange={e => update('tenure', e.target.value)} required />
+                            <input type="number" min="0" placeholder={form.tenureType === 'years' ? 'e.g. 5' : 'e.g. 60'} value={form.tenure} onChange={e => update('tenure', e.target.value)} required />
                         </div>
                         <button type="submit" className="btn btn-primary btn-full">Calculate EMI</button>
                     </form>

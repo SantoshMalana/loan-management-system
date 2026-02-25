@@ -1,162 +1,200 @@
-import { Link } from 'react-router-dom';
 import { useContext } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { AuthContext } from '../context/AuthContext';
 
-const loanTypes = [
-    { emoji: '🎓', name: 'Education Loan', rate: '9.00% p.a.', max: '₹75 Lakhs', desc: 'Study in India or abroad. No collateral up to ₹7.5L.' },
-    { emoji: '🏠', name: 'Home Loan', rate: '8.75% p.a.', max: '₹5 Crores', desc: 'Built or under-construction property. 30-year tenure.' },
-    { emoji: '💳', name: 'Personal Loan', rate: '13.50% p.a.', max: '₹25 Lakhs', desc: 'No collateral. Quick disbursement in 48 hours.' },
-    { emoji: '🏭', name: 'Business Loan', rate: '14.00% p.a.', max: '₹2 Crores', desc: 'Capital for MSMEs, startups, and established businesses.' },
-    { emoji: '🚗', name: 'Vehicle Loan', rate: '10.50% p.a.', max: '₹50 Lakhs', desc: 'For two-wheelers, cars, and commercial vehicles.' },
-    { emoji: '🥇', name: 'Gold Loan', rate: '9.50% p.a.', max: '₹50 Lakhs', desc: 'Instant loan against gold ornaments or coins.' },
+const STAFF_ROLES = ['branch_manager'];
+
+const fmt = (n) => `₹${Number(n).toLocaleString('en-IN')}`;
+
+const LOAN_TYPES = [
+    { emoji: '🏠', type: 'Home Loan', rate: '8.75% p.a.', max: '₹5 Crore', tenure: 'Up to 30 years', desc: 'Purchase, construct or renovate your home.' },
+    { emoji: '🎓', type: 'Education Loan', rate: '9.0% p.a.', max: '₹75 Lakh', tenure: 'Up to 7 years', desc: 'Study in India or abroad. IBA model scheme.' },
+    { emoji: '💳', type: 'Personal Loan', rate: '13.5% p.a.', max: '₹25 Lakh', tenure: 'Up to 5 years', desc: 'Instant credit for any personal need.' },
+    { emoji: '🏭', type: 'Business Loan', rate: '14.0% p.a.', max: '₹2 Crore', tenure: 'Up to 7 years', desc: 'Working capital, expansion or equipment.' },
+    { emoji: '🚗', type: 'Vehicle Loan', rate: '10.5% p.a.', max: '₹50 Lakh', tenure: 'Up to 7 years', desc: 'Two-wheelers, cars or commercial vehicles.' },
+    { emoji: '🥇', type: 'Gold Loan', rate: '9.5% p.a.', max: '₹50 Lakh', tenure: 'Up to 2 years', desc: 'Instant loan against gold ornaments or coins.' },
 ];
 
-const process = [
-    { num: '1', title: 'Fill Application', desc: 'Complete the digital application form with your details and loan requirement.' },
-    { num: '2', title: 'Document Submission', desc: 'Upload KYC, income proof, and collateral documents (if applicable).' },
-    { num: '3', title: 'Officer Review', desc: 'Our Loan Officer verifies your application and forwards to Branch Manager.' },
-    { num: '4', title: 'Approval & Sanction', desc: 'Branch Manager approves and issues the Loan Sanction Letter.' },
-    { num: '5', title: 'Disbursement', desc: 'Approved amount credited directly to your bank account.' },
+const BANKS = ['SBI', 'HDFC', 'ICICI', 'Axis Bank', 'PNB', 'Kotak Mahindra', 'Bank of Baroda', 'Canara Bank', 'Union Bank', 'Yes Bank'];
+
+const STEPS = [
+    { icon: '📝', title: 'Register & Apply', desc: 'Create your account, fill in your profile and submit a loan application in minutes.' },
+    { icon: '🏦', title: 'Bank Manager Reviews', desc: 'Your assigned bank manager verifies your CIBIL score, income and documents.' },
+    { icon: '✅', title: 'Sanction & Disburse', desc: 'Once approved, the loan is sanctioned and amount credited to your bank account.' },
+    { icon: '📅', title: 'Repay via EMI', desc: 'A detailed EMI schedule is generated. Repay comfortably every month.' },
 ];
 
 const Home = () => {
     const { user } = useContext(AuthContext);
+    const navigate = useNavigate();
+
+    // Redirect logged-in users to their dashboard
+    if (user) {
+        if (STAFF_ROLES.includes(user.role)) {
+            navigate('/officer', { replace: true });
+        } else {
+            navigate('/dashboard', { replace: true });
+        }
+        return null;
+    }
 
     return (
-        <div className="anim-fade">
-            {/* Hero */}
-            <section className="hero">
-                <div className="hero-content">
-                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', background: 'rgba(255,255,255,0.15)', borderRadius: '20px', padding: '0.4rem 1rem', marginBottom: '1.5rem', fontSize: '0.85rem', fontWeight: 600 }}>
-                        🇮🇳 RBI-compliant Loan Management System
+        <div style={{ overflowX: 'hidden' }}>
+
+            {/* ── Hero ── */}
+            <section style={{
+                background: 'linear-gradient(135deg, #0c1445 0%, #1a3a8f 50%, #0c1445 100%)',
+                color: 'white', padding: '5rem 2rem 4rem', textAlign: 'center', position: 'relative', overflow: 'hidden',
+            }}>
+                {/* Background pattern */}
+                <div style={{ position: 'absolute', inset: 0, backgroundImage: 'radial-gradient(circle at 20% 50%, rgba(255,255,255,0.04) 0%, transparent 50%), radial-gradient(circle at 80% 20%, rgba(59,130,246,0.15) 0%, transparent 40%)', pointerEvents: 'none' }} />
+
+                <div style={{ position: 'relative', maxWidth: 760, margin: '0 auto' }}>
+                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', background: 'rgba(255,255,255,0.1)', borderRadius: 20, padding: '0.35rem 1rem', fontSize: '0.78rem', fontWeight: 600, marginBottom: '1.5rem', border: '1px solid rgba(255,255,255,0.15)' }}>
+                        🇮🇳 RBI-Compliant · Indian Banking System
                     </div>
-                    <h1>Smart Loans for Every Indian Dream</h1>
-                    <p>
-                        From education to homeownership — apply online, track your application in real-time, and get disbursed fast. Fully compliant with Indian banking regulations.
+                    <h1 style={{ fontSize: 'clamp(2rem, 5vw, 3.25rem)', fontWeight: 900, lineHeight: 1.15, marginBottom: '1.25rem', letterSpacing: '-0.02em' }}>
+                        Apply for a Loan from<br />
+                        <span style={{ background: 'linear-gradient(135deg, #60a5fa, #a78bfa)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+                            Top Indian Banks
+                        </span>
+                    </h1>
+                    <p style={{ fontSize: '1.05rem', opacity: 0.8, maxWidth: 520, margin: '0 auto 2rem', lineHeight: 1.6 }}>
+                        Education, Home, Personal, Business, Vehicle and Gold loans — processed by real Bank Managers with full transparency at every stage.
                     </p>
-                    <div className="hero-cta">
-                        {user ? (
-                            <Link to="/apply"><button className="btn btn-white btn-lg">Apply for a Loan</button></Link>
-                        ) : (
-                            <>
-                                <Link to="/register"><button className="btn btn-white btn-lg">Get Started — Free</button></Link>
-                                <Link to="/emi-calculator"><button className="btn btn-outline-white btn-lg">EMI Calculator</button></Link>
-                            </>
-                        )}
+                    <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center', flexWrap: 'wrap' }}>
+                        <Link to="/register">
+                            <button style={{ background: 'white', color: '#1a3a8f', fontWeight: 800, fontSize: '0.95rem', padding: '0.85rem 2rem', borderRadius: 'var(--radius)', border: 'none', cursor: 'pointer' }}>
+                                Apply Now →
+                            </button>
+                        </Link>
+                        <Link to="/emi-calculator">
+                            <button style={{ background: 'transparent', color: 'white', fontWeight: 700, fontSize: '0.95rem', padding: '0.85rem 2rem', borderRadius: 'var(--radius)', border: '1.5px solid rgba(255,255,255,0.4)', cursor: 'pointer' }}>
+                                🧮 EMI Calculator
+                            </button>
+                        </Link>
                     </div>
-                    {/* Quick Stats */}
-                    <div style={{ display: 'flex', gap: '3rem', justifyContent: 'center', marginTop: '3rem', flexWrap: 'wrap' }}>
-                        {[['₹500Cr+', 'Loans Disbursed'], ['50,000+', 'Happy Customers'], ['7 Days', 'Avg. Processing'], ['8.75%', 'Starting Rate']].map(([val, lbl]) => (
-                            <div key={lbl} style={{ textAlign: 'center' }}>
-                                <div style={{ fontSize: '1.6rem', fontWeight: 800, color: 'white' }}>{val}</div>
-                                <div style={{ fontSize: '0.78rem', color: 'rgba(255,255,255,0.7)', marginTop: '2px' }}>{lbl}</div>
+
+                    {/* Stats row */}
+                    <div style={{ display: 'flex', gap: '2rem', justifyContent: 'center', marginTop: '3rem', flexWrap: 'wrap' }}>
+                        {[
+                            { value: '10', label: 'Partner Banks' },
+                            { value: '6', label: 'Loan Types' },
+                            { value: '8.75%', label: 'Starting Rate' },
+                            { value: '₹5 Cr', label: 'Max Loan' },
+                        ].map(s => (
+                            <div key={s.label} style={{ textAlign: 'center' }}>
+                                <div style={{ fontSize: '1.6rem', fontWeight: 900, color: '#93c5fd' }}>{s.value}</div>
+                                <div style={{ fontSize: '0.75rem', opacity: 0.65, marginTop: '2px' }}>{s.label}</div>
                             </div>
                         ))}
                     </div>
                 </div>
             </section>
 
-            {/* Loan Types */}
-            <section style={{ padding: '4rem 0', background: 'white' }}>
-                <div className="container">
-                    <div style={{ textAlign: 'center', marginBottom: '2.5rem' }}>
-                        <h2>Loan Products</h2>
-                        <p style={{ marginTop: '0.5rem' }}>Competitive rates aligned with RBI guidelines. Choose the right loan for your needs.</p>
-                    </div>
-                    <div className="loan-types-grid">
-                        {loanTypes.map(lt => (
-                            <div key={lt.name} className="loan-type-card anim-up-1">
-                                <div className="lt-icon">{lt.emoji}</div>
-                                <h4>{lt.name}</h4>
-                                <p>{lt.desc}</p>
-                                <div className="lt-rate">{lt.rate} · Up to {lt.max}</div>
-                            </div>
+            {/* ── Bank Logos ── */}
+            <section style={{ background: '#f8fafc', padding: '1.5rem 2rem', borderBottom: '1px solid var(--border)' }}>
+                <div style={{ maxWidth: 900, margin: '0 auto' }}>
+                    <p style={{ textAlign: 'center', fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '1rem' }}>
+                        Partner Banks
+                    </p>
+                    <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', justifyContent: 'center' }}>
+                        {BANKS.map(b => (
+                            <span key={b} style={{ background: 'white', border: '1px solid var(--border)', borderRadius: 8, padding: '0.4rem 0.85rem', fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-muted)' }}>
+                                {b}
+                            </span>
                         ))}
                     </div>
                 </div>
             </section>
 
-            {/* Education Loan Highlight */}
-            <section style={{ padding: '4rem 0', background: 'var(--bg)' }}>
-                <div className="container">
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '3rem', alignItems: 'center' }}>
-                        <div>
-                            <div style={{ display: 'inline-block', background: '#e0f2fe', color: '#0369a1', fontSize: '0.78rem', fontWeight: 700, padding: '0.3rem 0.75rem', borderRadius: '20px', marginBottom: '1rem' }}>
-                                🎓 VIDYA LAKSHMI SCHEME
-                            </div>
-                            <h2>Education Loan — No Collateral Required up to ₹7.5 Lakh</h2>
-                            <p style={{ marginTop: '0.75rem', marginBottom: '1.5rem', lineHeight: 1.8 }}>
-                                As per RBI/IBA Model Education Loan Scheme, no security is required for education loans up to ₹7.5 lakhs. For loans above this amount, tangible collateral such as land, property, or FDs must be pledged.
-                            </p>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+            {/* ── Loan Types ── */}
+            <section style={{ padding: '4rem 2rem', maxWidth: 1100, margin: '0 auto' }}>
+                <div style={{ textAlign: 'center', marginBottom: '2.5rem' }}>
+                    <h2 style={{ fontSize: '1.9rem', fontWeight: 800, marginBottom: '0.5rem' }}>Loan Products</h2>
+                    <p style={{ color: 'var(--text-muted)', fontSize: '0.95rem' }}>Competitive rates aligned with RBI and IBA guidelines</p>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1.25rem' }}>
+                    {LOAN_TYPES.map(loan => (
+                        <div key={loan.type} style={{ background: 'white', border: '1.5px solid var(--border)', borderRadius: 'var(--radius)', padding: '1.5rem', transition: 'all 0.2s', cursor: 'default' }}
+                            onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--primary)'; e.currentTarget.style.boxShadow = '0 4px 20px rgba(26,86,219,0.1)'; }}
+                            onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.boxShadow = 'none'; }}
+                        >
+                            <div style={{ fontSize: '2rem', marginBottom: '0.75rem' }}>{loan.emoji}</div>
+                            <h3 style={{ fontSize: '1rem', fontWeight: 800, marginBottom: '0.35rem' }}>{loan.type}</h3>
+                            <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginBottom: '1rem', lineHeight: 1.5 }}>{loan.desc}</p>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
                                 {[
-                                    ['Up to ₹4 Lakh', 'No collateral, no guarantor required'],
-                                    ['₹4 – ₹7.5 Lakh', 'Third-party guarantor required'],
-                                    ['Above ₹7.5 Lakh', 'Tangible collateral + guarantor required'],
-                                ].map(([range, desc]) => (
-                                    <div key={range} style={{ display: 'flex', gap: '0.75rem', alignItems: 'flex-start' }}>
-                                        <div style={{ background: 'var(--primary)', color: 'white', borderRadius: '6px', padding: '0.25rem 0.5rem', fontSize: '0.72rem', fontWeight: 700, whiteSpace: 'nowrap' }}>{range}</div>
-                                        <span style={{ fontSize: '0.88rem', color: 'var(--text-secondary)' }}>{desc}</span>
-                                    </div>
-                                ))}
-                            </div>
-                            <Link to={user ? '/apply' : '/register'} style={{ display: 'inline-block', marginTop: '1.75rem' }}>
-                                <button className="btn btn-primary">Apply for Education Loan →</button>
-                            </Link>
-                        </div>
-                        <div className="eligibility-box">
-                            <h3 style={{ marginBottom: '0.25rem' }}>General Eligibility Criteria</h3>
-                            <p style={{ fontSize: '0.85rem' }}>Basic requirements to apply for a loan in India</p>
-                            <div className="eligibility-grid">
-                                {[
-                                    ['🎂', 'Age', '21 – 65 years at time of loan maturity'],
-                                    ['📊', 'CIBIL Score', '700+ recommended for better rates'],
-                                    ['💼', 'Employment', 'Salaried/Self-employed with stable income'],
-                                    ['📋', 'KYC', 'Aadhaar, PAN, photograph required'],
-                                    ['🏠', 'Residence', 'Indian resident or NRI with valid docs'],
-                                    ['💰', 'Income', 'Minimum ₹15,000/month net income'],
-                                ].map(([icon, title, desc]) => (
-                                    <div key={title} className="elig-item">
-                                        <div className="elig-icon">{icon}</div>
-                                        <div className="elig-text">
-                                            <h5>{title}</h5>
-                                            <p>{desc}</p>
-                                        </div>
+                                    ['Rate', loan.rate],
+                                    ['Max Amount', loan.max],
+                                    ['Tenure', loan.tenure],
+                                ].map(([l, v]) => (
+                                    <div key={l} style={{ background: '#f8fafc', borderRadius: 6, padding: '0.5rem 0.6rem' }}>
+                                        <div style={{ fontSize: '0.62rem', color: 'var(--text-muted)', fontWeight: 600, marginBottom: '2px' }}>{l}</div>
+                                        <div style={{ fontSize: '0.82rem', fontWeight: 700 }}>{v}</div>
                                     </div>
                                 ))}
                             </div>
                         </div>
-                    </div>
+                    ))}
+                </div>
+                <div style={{ textAlign: 'center', marginTop: '2rem' }}>
+                    <Link to="/register">
+                        <button className="btn btn-primary btn-lg">Get Started — Apply Now →</button>
+                    </Link>
                 </div>
             </section>
 
-            {/* How It Works */}
-            <section style={{ padding: '4rem 0', background: 'white' }}>
-                <div className="container">
+            {/* ── How it Works ── */}
+            <section style={{ background: '#f0f7ff', padding: '4rem 2rem' }}>
+                <div style={{ maxWidth: 900, margin: '0 auto' }}>
                     <div style={{ textAlign: 'center', marginBottom: '2.5rem' }}>
-                        <h2>How the Process Works</h2>
-                        <p style={{ marginTop: '0.5rem' }}>Transparent, fair, and fully compliant with Indian banking norms</p>
+                        <h2 style={{ fontSize: '1.9rem', fontWeight: 800, marginBottom: '0.5rem' }}>How It Works</h2>
+                        <p style={{ color: 'var(--text-muted)', fontSize: '0.95rem' }}>Simple 4-step process, full transparency at every stage</p>
                     </div>
-                    <div className="process-steps">
-                        {process.map(p => (
-                            <div key={p.num} className="process-step anim-up-1">
-                                <div className="process-num">{p.num}</div>
-                                <h4>{p.title}</h4>
-                                <p>{p.desc}</p>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1.5rem' }}>
+                        {STEPS.map((step, i) => (
+                            <div key={i} style={{ background: 'white', borderRadius: 'var(--radius)', padding: '1.5rem', textAlign: 'center', border: '1px solid var(--border)', position: 'relative' }}>
+                                <div style={{ position: 'absolute', top: -14, left: '50%', transform: 'translateX(-50%)', background: 'var(--primary)', color: 'white', width: 28, height: 28, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: '0.82rem' }}>
+                                    {i + 1}
+                                </div>
+                                <div style={{ fontSize: '2rem', marginBottom: '0.75rem', marginTop: '0.5rem' }}>{step.icon}</div>
+                                <h4 style={{ fontWeight: 700, marginBottom: '0.4rem', fontSize: '0.95rem' }}>{step.title}</h4>
+                                <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', lineHeight: 1.5, margin: 0 }}>{step.desc}</p>
                             </div>
                         ))}
                     </div>
                 </div>
             </section>
 
-            {/* CTA */}
-            <section style={{ padding: '4rem 2rem', background: 'linear-gradient(135deg, #0f2461, #1a56db)', textAlign: 'center' }}>
-                <h2 style={{ color: 'white', marginBottom: '0.75rem' }}>Ready to Apply?</h2>
-                <p style={{ color: 'rgba(255,255,255,0.8)', marginBottom: '2rem' }}>Get started in 5 minutes. No hidden fees, no surprises.</p>
-                <Link to={user ? '/apply' : '/register'}>
-                    <button className="btn btn-white btn-lg">Start Your Application</button>
-                </Link>
+            {/* ── Staff Portals ── */}
+            <section style={{ padding: '4rem 2rem', maxWidth: 800, margin: '0 auto', textAlign: 'center' }}>
+                <h2 style={{ fontSize: '1.5rem', fontWeight: 800, marginBottom: '0.5rem' }}>Bank Staff Access</h2>
+                <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginBottom: '2rem' }}>
+                    Secure portal for Bank Managers
+                </p>
+                <div style={{ display: 'flex', justifyContent: 'center', maxWidth: 300, margin: '0 auto' }}>
+                    <Link to="/bm-login" style={{ textDecoration: 'none', width: '100%' }}>
+                        <div style={{ background: '#f5f3ff', border: '1.5px solid #ddd6fe', borderRadius: 'var(--radius)', padding: '1.5rem', cursor: 'pointer' }}
+                            onMouseEnter={e => e.currentTarget.style.borderColor = '#8b5cf6'}
+                            onMouseLeave={e => e.currentTarget.style.borderColor = '#ddd6fe'}
+                        >
+                            <div style={{ fontSize: '1.75rem', marginBottom: '0.5rem' }}>🏦</div>
+                            <div style={{ fontWeight: 700, color: '#6d28d9', marginBottom: '0.25rem' }}>Bank Manager</div>
+                            <div style={{ fontSize: '0.78rem', color: '#7c3aed' }}>Review & sanction loans</div>
+                        </div>
+                    </Link>
+                </div>
             </section>
+
+            {/* ── Footer ── */}
+            <footer style={{ background: '#0c1445', color: 'rgba(255,255,255,0.6)', padding: '2rem', textAlign: 'center', fontSize: '0.82rem' }}>
+                <div style={{ fontWeight: 700, color: 'white', marginBottom: '0.4rem', fontSize: '1rem' }}>🏦 BharatLoanMS</div>
+                <p style={{ margin: '0 0 0.5rem' }}>RBI-compliant Loan Management System · India</p>
+                <p style={{ margin: 0, fontSize: '0.75rem' }}>
+                    Helpline: <strong style={{ color: 'white' }}>1800-180-1111</strong> · Mon–Sat, 9AM–6PM IST
+                </p>
+            </footer>
         </div>
     );
 };
