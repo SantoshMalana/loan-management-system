@@ -206,11 +206,43 @@ Where:
 
 ## 🐛 Environment Variables
 
-| Variable | Description |
-|----------|-------------|
-| `PORT` | Port for the Express server (default: 5000) |
-| `MONGO_URI` | MongoDB connection string |
-| `JWT_SECRET` | Secret key for signing JWT tokens |
+### Backend (Server)
+
+| Variable | Description | Example |
+|----------|-------------|---------|
+| `PORT` | Port for the Express server | `5000` |
+| `MONGO_URI` | MongoDB connection string | `mongodb+srv://...` (Use Atlas for production) |
+| `JWT_SECRET` | Secret key for signing JWT tokens | `supersecretkey123` |
+| `EMAIL_USER` | Email address for sending OTPs | `demonop25@gmail.com` |
+| `EMAIL_PASS` | App password for the email address | `hjkagaywawppeael` |
+| `CLIENT_URL` | URL of the deployed frontend | `https://my-loan-frontend.vercel.app` |
+| `STAFF_REGISTRATION_CODE` | Passcode for Branch Manager registration | `BHARAT2024` |
+
+### Frontend (Client)
+
+| Variable | Description | Example |
+|----------|-------------|---------|
+| `VITE_API_URL` | URL of the deployed backend API | `https://my-loan-backend.onrender.com/api` |
+
+---
+
+## 🚀 Deployment Guide
+
+### Deploying the Backend (e.g., to Render)
+1. Push your code to GitHub.
+2. Create a new **Web Service** on Render.
+3. Connect your repository.
+4. Set the **Build Command** to `npm install` and the **Start Command** to `node index.js`.
+5. Add all the **Backend Environment Variables** listed above.
+6. **Note on MongoDB:** You cannot use `localhost` in production. Create a free cluster on MongoDB Atlas and use that connection string.
+7. Deploy! Wait for it to build and get your `onrender.com` URL.
+
+### Deploying the Frontend (e.g., to Vercel)
+1. Create a new project on Vercel and import your repository.
+2. The framework preset should auto-detect **Vite**.
+3. Under **Environment Variables**, add `VITE_API_URL` and set its value to your newly deployed backend URL (make sure it ends in `/api`).
+4. Click **Deploy**.
+5. Once deployed, get your Vercel URL and **go back to your backend settings** to update the `CLIENT_URL` environment variable so CORS allows the connection.
 
 ---
 
