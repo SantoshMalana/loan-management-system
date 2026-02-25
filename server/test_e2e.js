@@ -1,10 +1,17 @@
 const API_URL = 'http://localhost:5000/api';
-// We assume we can create an admin or there's a secret.
-const ADMIN_SECRET = 'bhrtln24';
+const mongoose = require('mongoose');
+require('dotenv').config();
+
+async function getOtpFromDb(userId) {
+    const user = await mongoose.connection.collection('users').findOne({ _id: new mongoose.Types.ObjectId(userId) });
+    return user ? user.otp : null;
+}
 
 async function runTests() {
     console.log('--- STARTING END-TO-END WORKFLOW TEST ---');
     try {
+        await mongoose.connect(process.env.MONGO_URI || 'mongodb://localhost:27017/loan-management-system');
+
         console.log('\n--- 1. Applicant Registration & Login ---');
         const applicantData = {
             username: `user_${Date.now()}`,
@@ -26,11 +33,21 @@ async function runTests() {
 
         res = await fetch(`${API_URL}/auth/login`, {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ username: applicantData.username, password: 'password123' })
+            body: JSON.stringify({ username: applicantData.username, password: 'password123', portalType: 'applicant' })
+        });
+        if (!res.ok) throw new Error(await res.text());
+        const loginRes = await res.json();
+
+        const appOtp = await getOtpFromDb(loginRes.userId);
+
+        res = await fetch(`${API_URL}/auth/verify-otp`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ userId: loginRes.userId, otp: appOtp })
         });
         if (!res.ok) throw new Error(await res.text());
         const appToken = (await res.json()).token;
-        console.log('✅ Applicant logged in');
+
+        console.log('✅ Applicant logged in (OTP Verified)');
 
         console.log('\n--- 2. Applicant Submits Loan ---');
         const loanPayload = {
@@ -45,39 +62,41 @@ async function runTests() {
         const loanId = (await res.json())._id;
         console.log('✅ Loan submitted, ID:', loanId);
 
-        console.log('\n--- 3. Admin Login (uses pre-seeded admin account) ---');
-        // Admin accounts CANNOT be self-registered. They must be created via `node server/seed.js`.
-        // Run: node server/seed.js  — before running this test.
-        const ADMIN_USERNAME = process.env.SEED_ADMIN_USERNAME || 'admin';
-        const ADMIN_PASSWORD = process.env.SEED_ADMIN_PASSWORD || 'Admin@2026';
+        console.log('\n--- 3. Bank Manager Login ---');
+        // We use a pre-seeded Branch Manager
+        // Ensure you have a BM seeded. E.g username: bm_sbi, password: Password123
+        const BM_USERNAME = 'bm_sbi';
+        const BM_PASSWORD = 'Password123';
 
         res = await fetch(`${API_URL}/auth/login`, {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ username: ADMIN_USERNAME, password: ADMIN_PASSWORD, staffOnly: true })
+            body: JSON.stringify({ username: BM_USERNAME, password: BM_PASSWORD, portalType: 'staff', bank: 'SBI' })
         });
-        if (!res.ok) throw new Error(`Admin login failed: ${await res.text()}. Did you run: node server/seed.js ?`);
-        const adminToken = (await res.json()).token;
-        console.log('✅ Admin logged in');
+        if (!res.ok) throw new Error(`BM login failed: ${await res.text()}. Ensure a Bank Manager is seeded!`);
 
-        console.log('\n--- 4. Officer Review -> Branch Review ---');
-        res = await fetch(`${API_URL}/loans/${loanId}/officer-review`, {
-            method: 'PUT', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${adminToken}` },
-            body: JSON.stringify({ action: 'approved', remarks: 'Looks good' })
+        const bmLoginRes = await res.json();
+        const bmOtp = await getOtpFromDb(bmLoginRes.userId);
+
+        res = await fetch(`${API_URL}/auth/verify-otp`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            // Hardcoding staffSecretCode 'ALPHA123' assuming seed script sets it
+            body: JSON.stringify({ userId: bmLoginRes.userId, otp: bmOtp, secretCode: 'ALPHA123' })
+        });
+        if (!res.ok) throw new Error(`BM OTP Verification failed: ${await res.text()}`);
+        const bmToken = (await res.json()).token;
+        console.log('✅ Bank Manager logged in (OTP + Secret Verified)');
+
+        console.log('\n--- 4. BM Review -> Sanctioned ---');
+        res = await fetch(`${API_URL}/loans/${loanId}/bm-review`, {
+            method: 'PUT', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${bmToken}` },
+            body: JSON.stringify({ action: 'approved', remarks: 'Looks good to BM' })
         });
         if (!res.ok) throw new Error(await res.text());
-        console.log('✅ Loan approved by officer (Moved to Branch Review)');
+        console.log('✅ Loan sanctioned by Branch Manager');
 
-        console.log('\n--- 5. Branch Manager Review -> Sanctioned ---');
-        res = await fetch(`${API_URL}/loans/${loanId}/manager-review`, {
-            method: 'PUT', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${adminToken}` },
-            body: JSON.stringify({ action: 'approved', remarks: 'Sanctioned' })
-        });
-        if (!res.ok) throw new Error(await res.text());
-        console.log('✅ Loan sanctioned by branch manager');
-
-        console.log('\n--- 6. Officer Disbursal ---');
+        console.log('\n--- 5. BM Disbursal ---');
         res = await fetch(`${API_URL}/loans/${loanId}/disburse`, {
-            method: 'PUT', headers: { 'Authorization': `Bearer ${adminToken}` }
+            method: 'PUT', headers: { 'Authorization': `Bearer ${bmToken}` }
         });
         if (!res.ok) throw new Error(await res.text());
         console.log('✅ Loan disbursed successfully! EMI generated.');
@@ -86,6 +105,8 @@ async function runTests() {
 
     } catch (err) {
         console.error('\n❌ E2E TEST FAILED:', err.message);
+    } finally {
+        await mongoose.connection.close();
     }
 }
 runTests();

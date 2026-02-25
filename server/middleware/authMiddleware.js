@@ -30,47 +30,4 @@ const verifyToken = async (req, res, next) => {
     }
 };
 
-const verifyAdmin = async (req, res, next) => {
-    await verifyToken(req, res, async () => {
-        if (req.user.role === 'admin') {
-            next();
-        } else {
-            res.status(403).json({ error: 'Admin access required' });
-        }
-    });
-};
-
-const verifyOfficer = async (req, res, next) => {
-    await verifyToken(req, res, async () => {
-        const officerRoles = ['loan_officer', 'branch_manager', 'general_manager', 'admin'];
-        if (officerRoles.includes(req.user.role)) {
-            next();
-        } else {
-            res.status(403).json({ error: 'Officer access required' });
-        }
-    });
-};
-
-const verifyBranchManager = async (req, res, next) => {
-    await verifyToken(req, res, async () => {
-        const roles = ['branch_manager', 'general_manager', 'admin'];
-        if (roles.includes(req.user.role)) {
-            next();
-        } else {
-            res.status(403).json({ error: 'Branch Manager access required' });
-        }
-    });
-};
-
-const verifyGM = async (req, res, next) => {
-    await verifyToken(req, res, async () => {
-        const roles = ['general_manager', 'admin'];
-        if (roles.includes(req.user.role)) {
-            next();
-        } else {
-            res.status(403).json({ error: 'General Manager access required' });
-        }
-    });
-};
-
-module.exports = { verifyToken, verifyAdmin, verifyOfficer, verifyBranchManager, verifyGM };
+module.exports = { verifyToken };

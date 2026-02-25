@@ -40,7 +40,7 @@ const LoanSchema = new mongoose.Schema({
     applicationNumber: { type: String, unique: true },
     user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
 
-    // Bank handling this loan (determines which bank admin can see/approve it)
+    // Bank handling this loan
     bankName: {
         type: String,
         enum: ['SBI', 'HDFC', 'ICICI', 'Axis Bank', 'PNB', 'Kotak Mahindra', 'Bank of Baroda', 'Canara Bank', 'Union Bank', 'Yes Bank'],

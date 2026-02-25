@@ -6,7 +6,7 @@ const UserSchema = new mongoose.Schema({
     // 'user' kept for backward compat (treated as applicant)
     role: {
         type: String,
-        enum: ['user', 'applicant', 'loan_officer', 'branch_manager', 'general_manager', 'admin'],
+        enum: ['user', 'applicant', 'branch_manager'],
         default: 'applicant'
     },
     fullName: { type: String, required: true },
@@ -48,7 +48,7 @@ const UserSchema = new mongoose.Schema({
     // 2-Step Login: OTP (temp) + secret code (permanent, hashed)
     otp: { type: String, select: false },
     otpExpiry: { type: Date, select: false },
-    staffSecretCode: { type: String, select: false }, // bcrypt-hashed, for admin & BM
+    staffSecretCode: { type: String, select: false }, // bcrypt-hashed, for BM
 
     isVerified: { type: Boolean, default: false },
 }, { timestamps: true });

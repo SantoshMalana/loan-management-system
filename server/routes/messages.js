@@ -5,7 +5,7 @@ const { verifyToken } = require('../middleware/authMiddleware');
 
 const APPLICANT_ROLES = ['user', 'applicant'];
 
-// Send a message (admin/officer → applicant or vice versa)
+// Send a message (BM → applicant or vice versa)
 router.post('/', verifyToken, async (req, res) => {
     try {
         const { receiverId, loanId, message, type } = req.body;
@@ -89,7 +89,7 @@ router.get('/inbox', verifyToken, async (req, res) => {
     }
 });
 
-// Get all applicants for admin/officer (so they can initiate a chat)
+// Get all applicants for BM (so they can initiate a chat)
 router.get('/applicants', verifyToken, async (req, res) => {
     try {
         const sender = await User.findById(req.user.id);
