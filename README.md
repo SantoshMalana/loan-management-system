@@ -1,6 +1,6 @@
 # 🏦 Loan Management System
 
-A full-stack web application for managing loan applications, approvals, and tracking — built with React, Node.js, Express, and MongoDB. Features a three-role system (User, Loan Officer, Admin), real-time chat, EMI calculator, and a complete loan lifecycle workflow.
+A full-stack web application for managing loan applications, approvals, and tracking — built with React, Node.js, Express, and MongoDB. Features a two-role system (Applicant, Bank Manager), real-time chat, EMI calculator, and a complete loan lifecycle workflow.
 
 ---
 
@@ -19,7 +19,7 @@ A full-stack web application for managing loan applications, approvals, and trac
 
 ## ✨ Features
 
-### 👤 User
+### 👤 Applicant
 - Register and log in securely
 - Apply for loans with full application form
 - Track real-time loan status (Pending → Under Review → Approved / Rejected)
@@ -27,15 +27,11 @@ A full-stack web application for managing loan applications, approvals, and trac
 - Built-in **EMI Calculator** — compute monthly installments before applying
 - **Live Chat** — message support directly from the platform
 
-### 🏢 Loan Officer
-- Dedicated **Officer Panel** to review assigned loan applications
+### 🏢 Bank Manager
+- Dedicated **Staff Portal** to review incoming loan applications
 - Approve or reject applications with remarks
 - View applicant details and uploaded documents
-
-### 🔐 Admin
-- Full **Admin Dashboard** with overview of all loans and users
-- Manage loan officers — assign/remove roles
-- Monitor system-wide loan activity and status
+- Integrated secure staff registration via Secret Codes
 
 ---
 
@@ -54,16 +50,14 @@ LoanManagementSystem/
 │   │   │   └── AuthContext.jsx # Global auth state (user, token, role)
 │   │   ├── pages/
 │   │   │   ├── Home.jsx            # Landing page
-│   │   │   ├── Register.jsx        # User registration
-│   │   │   ├── Login.jsx           # User login
-│   │   │   ├── AdminLogin.jsx      # Admin login (separate route)
-│   │   │   ├── Dashboard.jsx       # User dashboard — loan list & status
+│   │   │   ├── Register.jsx        # Applicant registration
+│   │   │   ├── Login.jsx           # Unified login (Applicant/Staff)
+│   │   │   ├── Dashboard.jsx       # Applicant dashboard — loan list & status
 │   │   │   ├── LoanApply.jsx       # Loan application form
 │   │   │   ├── LoanDetail.jsx      # Detailed loan view + repayment schedule
 │   │   │   ├── EMICalculator.jsx   # Standalone EMI calculator tool
 │   │   │   ├── ChatPage.jsx        # Live chat / support interface
-│   │   │   ├── OfficerPanel.jsx    # Loan officer review panel
-│   │   │   └── AdminDashboard.jsx  # Admin management dashboard
+│   │   │   └── OfficerPanel.jsx    # Bank Manager review panel
 │   │   ├── App.jsx             # Routes and layout
 │   │   └── main.jsx            # Entry point
 │   └── vite.config.js
@@ -77,7 +71,7 @@ LoanManagementSystem/
     │   └── Message.js          # Chat message schema
     ├── routes/
     │   ├── auth.js             # Register, login, token endpoints
-    │   ├── loan.js             # Loan CRUD + status update + officer actions
+    │   ├── loan.js             # Loan CRUD + status update + manager actions
     │   └── messages.js         # Chat message endpoints
     └── index.js                # Express app entry point
 ```
@@ -129,13 +123,12 @@ The app will be available at `http://localhost:5173`
 
 ## 🔐 Authentication & Roles
 
-The system uses **JWT-based authentication** with three roles:
+The system uses **JWT-based authentication** with two distinct roles:
 
 | Role | Access |
 |------|--------|
-| `user` | Apply for loans, track status, chat, EMI calculator |
-| `officer` | Review and action loan applications |
-| `admin` | Full system access — users, officers, all loans |
+| `applicant` | Apply for loans, track status, chat, EMI calculator |
+| `branch_manager` | Access Staff Portal, review and action loan applications across branches |
 
 All protected routes verify the JWT token via `authMiddleware.js`. Role-specific routes additionally check the user's role before granting access.
 
@@ -146,18 +139,18 @@ All protected routes verify the JWT token via `authMiddleware.js`. Role-specific
 ### Auth — `/api/auth`
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| POST | `/register` | Register a new user |
-| POST | `/login` | User login — returns JWT |
-| POST | `/admin/login` | Admin login |
+| POST | `/register` | Register a new applicant or branch manager |
+| POST | `/login` | Secure login (OTP + optional Secret Code) |
+| POST | `/verify-otp` | Verify OTP to receive JWT |
 
 ### Loans — `/api/loans`
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | POST | `/apply` | Submit a new loan application |
-| GET | `/my` | Get current user's loans |
+| GET | `/my` | Get current applicant's loans |
 | GET | `/:id` | Get loan details by ID |
-| PUT | `/:id/status` | Officer: update loan status |
-| GET | `/all` | Admin: get all loans |
+| PUT | `/:id/status` | Bank Manager: update loan status |
+| GET | `/all` | Bank Manager: get all loans |
 
 ### Messages — `/api/messages`
 | Method | Endpoint | Description |
@@ -171,15 +164,14 @@ All protected routes verify the JWT token via `authMiddleware.js`. Role-specific
 
 ### User
 ```
-name, email, password (hashed), role (user / officer / admin), createdAt
+fullName, email, password (hashed), role (applicant / branch_manager), cibilScore, otp, staffSecretCode, createdAt
 ```
 
 ### Loan
 ```
 applicant (ref: User), loanType, amount, tenure, purpose,
 status (pending / under_review / approved / rejected),
-officerRemarks, assignedOfficer (ref: User),
-documents, repaymentSchedule, createdAt
+officerRemarks, documents, repaymentSchedule, createdAt
 ```
 
 ### Message
